@@ -1,10 +1,11 @@
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Redirect, useRouter } from "expo-router";
 import { StatusBar as ExpoStatusBar } from "expo-status-bar";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Dimensions,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -12,11 +13,64 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { getLocalStorage, removeLocalStorage } from "../utils/storage";
 
 const { width } = Dimensions.get("window");
 
 export default function App() {
+  const router = useRouter();
+
+  // State diatur ke null terlebih dahulu agar aplikasi menunggu proses baca Local Storage
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
   const [activeTab, setActiveTab] = useState("home");
+  const [userEmail, setUserEmail] = useState("");
+
+  // Pengecekan Status Login dari Local Storage saat komponen dimuat
+  useEffect(() => {
+    const checkAuthStatus = async () => {
+      const status = await getLocalStorage("isLoggedIn");
+      const savedEmail = await getLocalStorage("userEmail");
+
+      if (status === "true") {
+        setIsLoggedIn(true);
+        if (savedEmail) setUserEmail(savedEmail);
+      } else {
+        setIsLoggedIn(false);
+      }
+    };
+
+    checkAuthStatus();
+  }, []);
+
+  // Fitur Logout
+  const handleLogout = () => {
+    Alert.alert("Konfirmasi Logout", "Apakah Anda yakin ingin keluar?", [
+      { text: "Batal", style: "cancel" },
+      {
+        text: "Keluar",
+        style: "destructive",
+        onPress: async () => {
+          await removeLocalStorage("isLoggedIn");
+          setIsLoggedIn(false);
+        },
+      },
+    ]);
+  };
+
+  // 1. Tampilan Loading saat membaca Local Storage
+  if (isLoggedIn === null) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#FFFFFF" />
+      </View>
+    );
+  }
+
+  // 2. Pengalihan Otomatis jika status login adalah false
+  if (!isLoggedIn) {
+    return <Redirect href="/login" />;
+  }
 
   // Data Statistik Ringkas
   const stats = [
@@ -26,7 +80,7 @@ export default function App() {
       value: "1,428",
       unit: "Item",
       icon: "cube-outline",
-      color: "#4F46E5", // Indigo
+      color: "#4F46E5",
       bgColor: "#EEF2FF",
       trend: "+12 item baru",
     },
@@ -36,7 +90,7 @@ export default function App() {
       value: "86",
       unit: "Aktif",
       icon: "sync-outline",
-      color: "#F59E0B", // Amber
+      color: "#F59E0B",
       bgColor: "#FEF3C7",
       trend: "6 kembali hari ini",
     },
@@ -46,7 +100,7 @@ export default function App() {
       value: "12",
       unit: "Kasus",
       icon: "alert-circle-outline",
-      color: "#EF4444", // Rose Red
+      color: "#EF4444",
       bgColor: "#FEE2E2",
       trend: "2 pending audit",
     },
@@ -113,7 +167,9 @@ export default function App() {
             </View>
             <View>
               <Text style={styles.brandName}>InvenGo</Text>
-              <Text style={styles.brandTagline}>Inventory Master System</Text>
+              <Text style={styles.brandTagline}>
+                {userEmail ? userEmail : "Inventory Master System"}
+              </Text>
             </View>
           </View>
 
@@ -130,17 +186,19 @@ export default function App() {
               />
               <View style={styles.notificationBadge} />
             </TouchableOpacity>
+
+            {/* Tombol Profil sekaligus berfungsi untuk Logout */}
             <TouchableOpacity
               style={styles.profileButton}
               activeOpacity={0.7}
-              onPress={() => handleActionPress("Profil Akun")}
+              onPress={handleLogout}
             >
-              <Feather name="user" size={18} color="#3730A3" />
+              <Feather name="log-out" size={18} color="#EF4444" />
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Hero Section / Deskripsi Singkat */}
+        {/* Hero Section */}
         <View style={styles.heroContent}>
           <Text style={styles.heroGreeting}>
             Kelola Aset Lebih Cepat & Akurat 📦
@@ -173,13 +231,13 @@ export default function App() {
         </View>
       </View>
 
-      {/* Konten Scrollable */}
+      {/* Konten Utama */}
       <ScrollView
         style={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Section 1: Statistik Ringkas */}
+        {/* Section 1: Ringkasan */}
         <View style={styles.sectionHeader}>
           <View>
             <Text style={styles.sectionTitle}>Ringkasan Inventaris</Text>
@@ -223,7 +281,7 @@ export default function App() {
               <Text style={styles.statTitle}>{item.title}</Text>
 
               <View style={styles.statTrendRow}>
-                <Feather name={"info" as any} size={11} color="#64748B" />
+                <Feather name="info" size={11} color="#64748B" />
                 <Text style={styles.statTrendText} numberOfLines={1}>
                   {item.trend}
                 </Text>
@@ -232,7 +290,7 @@ export default function App() {
           ))}
         </View>
 
-        {/* Section 2: Tiga Menu Utama */}
+        {/* Section 2: Menu Utama */}
         <View style={[styles.sectionHeader, { marginTop: 24 }]}>
           <View>
             <Text style={styles.sectionTitle}>Menu Utama</Text>
@@ -285,7 +343,7 @@ export default function App() {
           ))}
         </View>
 
-        {/* Banner Stok Opname / Audit */}
+        {/* Banner Stok Opname */}
         <View style={styles.auditBanner}>
           <View style={styles.auditTextCol}>
             <View style={styles.auditHeaderRow}>
@@ -308,7 +366,7 @@ export default function App() {
         </View>
       </ScrollView>
 
-      {/* Bottom Navigation Bar */}
+      {/* Bottom Nav */}
       <View style={styles.bottomNav}>
         <TouchableOpacity
           style={styles.navItem}
@@ -348,7 +406,6 @@ export default function App() {
           </Text>
         </TouchableOpacity>
 
-        {/* Center Floating Action Button (FAB) */}
         <TouchableOpacity
           style={styles.centerFab}
           activeOpacity={0.85}
@@ -400,6 +457,12 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: "#3730A3",
+    justifyContent: "center",
+    alignItems: "center",
+  },
   safeArea: {
     flex: 1,
     backgroundColor: "#3730A3",
@@ -430,11 +493,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#4F46E5",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 4,
   },
   brandName: {
     fontSize: 22,
@@ -476,7 +534,7 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 12,
-    backgroundColor: "#EEF2FF",
+    backgroundColor: "#FEE2E2",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -509,11 +567,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     gap: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
   },
   searchPlaceholder: {
     fontSize: 13,
@@ -526,11 +579,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#4F46E5",
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 3,
   },
   scrollContainer: {
     flex: 1,
@@ -574,11 +622,6 @@ const styles = StyleSheet.create({
     padding: 12,
     borderWidth: 1,
     borderColor: "#F1F5F9",
-    shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 2,
   },
   statTopRow: {
     flexDirection: "row",
@@ -605,7 +648,6 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "800",
     color: "#0F172A",
-    letterSpacing: 0.2,
   },
   statTitle: {
     fontSize: 11,
@@ -638,11 +680,6 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     borderColor: "#E2E8F0",
-    shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
   },
   menuIconContainer: {
     width: 56,
@@ -732,11 +769,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 10,
-    shadowColor: "#059669",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 2,
   },
   auditButtonText: {
     color: "#FFFFFF",
@@ -777,15 +809,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginTop: -28,
-    shadowColor: "#4F46E5",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
-    elevation: 6,
     borderWidth: 3,
     borderColor: "#FFFFFF",
   },
 });
-``;
-
-// Update kontributor zaenabazikha
