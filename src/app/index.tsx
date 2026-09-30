@@ -1,10 +1,6 @@
-import {
-  Feather,
-  Ionicons,
-  MaterialCommunityIcons,
-} from '@expo/vector-icons';
-import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
-import { useState } from 'react';
+import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { StatusBar as ExpoStatusBar } from "expo-status-bar";
+import { useState } from "react";
 import {
   Alert,
   Dimensions,
@@ -15,100 +11,105 @@ import {
   Text,
   TouchableOpacity,
   View,
-} from 'react-native';
+} from "react-native";
 
-const { width } = Dimensions.get('window');
+const { width } = Dimensions.get("window");
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('home');
+  const [activeTab, setActiveTab] = useState("home");
 
   // Data Statistik Ringkas
   const stats = [
     {
-      id: '1',
-      title: 'Total Barang',
-      value: '1,428',
-      unit: 'Item',
-      icon: 'cube-outline',
-      color: '#4F46E5', // Indigo
-      bgColor: '#EEF2FF',
-      trend: '+12 item baru',
+      id: "1",
+      title: "Total Barang",
+      value: "1,428",
+      unit: "Item",
+      icon: "cube-outline",
+      color: "#4F46E5", // Indigo
+      bgColor: "#EEF2FF",
+      trend: "+12 item baru",
     },
     {
-      id: '2',
-      title: 'Dipinjam',
-      value: '86',
-      unit: 'Aktif',
-      icon: 'sync-outline',
-      color: '#F59E0B', // Amber
-      bgColor: '#FEF3C7',
-      trend: '6 kembali hari ini',
+      id: "2",
+      title: "Dipinjam",
+      value: "86",
+      unit: "Aktif",
+      icon: "sync-outline",
+      color: "#F59E0B", // Amber
+      bgColor: "#FEF3C7",
+      trend: "6 kembali hari ini",
     },
     {
-      id: '3',
-      title: 'Rusak / Hilang',
-      value: '12',
-      unit: 'Kasus',
-      icon: 'alert-circle-outline',
-      color: '#EF4444', // Rose Red
-      bgColor: '#FEE2E2',
-      trend: '2 pending audit',
+      id: "3",
+      title: "Rusak / Hilang",
+      value: "12",
+      unit: "Kasus",
+      icon: "alert-circle-outline",
+      color: "#EF4444", // Rose Red
+      bgColor: "#FEE2E2",
+      trend: "2 pending audit",
     },
   ];
 
   // 3 Menu Utama Aplikasi
   const mainMenus = [
     {
-      id: 'daftar-barang',
-      title: 'Daftar Barang',
-      subtitle: 'Katalog & Stok Fisik',
-      description: 'Pantau ketersediaan barang, tambah aset baru, spesifikasi, dan manajemen kategori.',
-      iconName: 'archive-outline',
-      tag: 'Katalog',
-      accentColor: '#4F46E5',
-      badgeBg: '#EEF2FF',
+      id: "daftar-barang",
+      title: "Daftar Barang",
+      subtitle: "Katalog & Stok Fisik",
+      description:
+        "Pantau ketersediaan barang, tambah aset baru, spesifikasi, dan manajemen kategori.",
+      iconName: "archive-outline",
+      tag: "Katalog",
+      accentColor: "#4F46E5",
+      badgeBg: "#EEF2FF",
     },
     {
-      id: 'transaksi-peminjaman',
-      title: 'Transaksi Peminjaman',
-      subtitle: 'Sirkulasi & Peminjaman',
-      description: 'Catat formulir peminjaman, persetujuan staf, riwayat mutasi, dan tenggat pengembalian.',
-      iconName: 'swap-horizontal-outline',
-      tag: 'Sirkulasi',
-      accentColor: '#0EA5E9',
-      badgeBg: '#E0F2FE',
+      id: "transaksi-peminjaman",
+      title: "Transaksi Peminjaman",
+      subtitle: "Sirkulasi & Peminjaman",
+      description:
+        "Catat formulir peminjaman, persetujuan staf, riwayat mutasi, dan tenggat pengembalian.",
+      iconName: "swap-horizontal-outline",
+      tag: "Sirkulasi",
+      accentColor: "#0EA5E9",
+      badgeBg: "#E0F2FE",
     },
     {
-      id: 'pelacakan-laporan',
-      title: 'Pelacakan & Laporan',
-      subtitle: 'Audit & Analitik',
-      description: 'Lacak posisi aset via barcode/QR, ringkasan stok opname bulanan, dan ekspor laporan.',
-      iconName: 'analytics-outline',
-      tag: 'Analitik',
-      accentColor: '#10B981',
-      badgeBg: '#D1FAE5',
+      id: "pelacakan-laporan",
+      title: "Pelacakan & Laporan",
+      subtitle: "Audit & Analitik",
+      description:
+        "Lacak posisi aset via barcode/QR, ringkasan stok opname bulanan, dan ekspor laporan.",
+      iconName: "analytics-outline",
+      tag: "Analitik",
+      accentColor: "#10B981",
+      badgeBg: "#D1FAE5",
     },
   ];
 
-  const handleMenuPress = (menuTitle) => {
-    Alert.alert('Navigasi Menu', `Membuka halaman ${menuTitle}...`);
+  const handleMenuPress = (menuTitle: string) => {
+    Alert.alert("Navigasi Menu", "Membuka halaman " + menuTitle);
   };
 
-  const handleActionPress = (actionName) => {
-    Alert.alert('Aksi Cepat', `Menjalankan aksi: ${actionName}`);
+  const handleActionPress = (actionName: string) => {
+    Alert.alert("Aksi Cepat", "Menjalankan aksi: " + actionName);
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ExpoStatusBar style="light" backgroundColor="#3730A3" />
-
-      {/* Header & Hero Section */}
+      <ExpoStatusBar style="light" />
       <View style={styles.headerBackground}>
         {/* Top Navbar */}
         <View style={styles.topNavbar}>
           <View style={styles.brandRow}>
             <View style={styles.headerLogoContainer}>
-              <MaterialCommunityIcons name="cube-scan" size={28} color="#FFFFFF" />
+              <MaterialCommunityIcons
+                name="cube-scan"
+                size={28}
+                color="#FFFFFF"
+              />
             </View>
             <View>
               <Text style={styles.brandName}>InvenGo</Text>
@@ -120,15 +121,19 @@ export default function App() {
             <TouchableOpacity
               style={styles.iconButton}
               activeOpacity={0.7}
-              onPress={() => handleActionPress('Notifikasi')}
+              onPress={() => handleActionPress("Notifikasi")}
             >
-              <Ionicons name="notifications-outline" size={20} color="#FFFFFF" />
+              <Ionicons
+                name="notifications-outline"
+                size={20}
+                color="#FFFFFF"
+              />
               <View style={styles.notificationBadge} />
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.profileButton}
               activeOpacity={0.7}
-              onPress={() => handleActionPress('Profil Akun')}
+              onPress={() => handleActionPress("Profil Akun")}
             >
               <Feather name="user" size={18} color="#3730A3" />
             </TouchableOpacity>
@@ -137,9 +142,12 @@ export default function App() {
 
         {/* Hero Section / Deskripsi Singkat */}
         <View style={styles.heroContent}>
-          <Text style={styles.heroGreeting}>Kelola Aset Lebih Cepat & Akurat 📦</Text>
+          <Text style={styles.heroGreeting}>
+            Kelola Aset Lebih Cepat & Akurat 📦
+          </Text>
           <Text style={styles.heroDescription}>
-            Sistem terpadu manajemen inventaris untuk memonitor siklus aset, peminjaman, serta pelacakan kondisi secara real-time.
+            Sistem terpadu manajemen inventaris untuk memonitor siklus aset,
+            peminjaman, serta pelacakan kondisi secara real-time.
           </Text>
 
           {/* Quick Search & Scan Bar */}
@@ -147,15 +155,17 @@ export default function App() {
             <TouchableOpacity
               style={styles.searchFakeInput}
               activeOpacity={0.8}
-              onPress={() => handleActionPress('Pencarian Barang')}
+              onPress={() => handleActionPress("Pencarian Barang")}
             >
               <Ionicons name="search" size={18} color="#64748B" />
-              <Text style={styles.searchPlaceholder}>Cari kode SKU, nama barang...</Text>
+              <Text style={styles.searchPlaceholder}>
+                Cari kode SKU, nama barang...
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.scanButton}
               activeOpacity={0.8}
-              onPress={() => handleActionPress('Scan QR/Barcode')}
+              onPress={() => handleActionPress("Scan QR/Barcode")}
             >
               <Ionicons name="qr-code-outline" size={20} color="#FFFFFF" />
             </TouchableOpacity>
@@ -177,7 +187,7 @@ export default function App() {
           </View>
           <TouchableOpacity
             activeOpacity={0.7}
-            onPress={() => handleActionPress('Segarkan Data')}
+            onPress={() => handleActionPress("Segarkan Data")}
           >
             <Text style={styles.linkText}>Refresh</Text>
           </TouchableOpacity>
@@ -187,10 +197,24 @@ export default function App() {
           {stats.map((item) => (
             <View key={item.id} style={styles.statCard}>
               <View style={styles.statTopRow}>
-                <View style={[styles.statIconWrapper, { backgroundColor: item.bgColor }]}>
-                  <Ionicons name={item.icon} size={22} color={item.color} />
+                <View
+                  style={[
+                    styles.statIconWrapper,
+                    { backgroundColor: item.bgColor },
+                  ]}
+                >
+                  <Ionicons
+                    name={item.icon as any}
+                    size={22}
+                    color={item.color}
+                  />
                 </View>
-                <Text style={[styles.statUnit, { color: item.color, backgroundColor: item.bgColor }]}>
+                <Text
+                  style={[
+                    styles.statUnit,
+                    { color: item.color, backgroundColor: item.bgColor },
+                  ]}
+                >
                   {item.unit}
                 </Text>
               </View>
@@ -199,7 +223,7 @@ export default function App() {
               <Text style={styles.statTitle}>{item.title}</Text>
 
               <View style={styles.statTrendRow}>
-                <Feather name="info" size={11} color="#64748B" />
+                <Feather name={"info" as any} size={11} color="#64748B" />
                 <Text style={styles.statTrendText} numberOfLines={1}>
                   {item.trend}
                 </Text>
@@ -212,7 +236,9 @@ export default function App() {
         <View style={[styles.sectionHeader, { marginTop: 24 }]}>
           <View>
             <Text style={styles.sectionTitle}>Menu Utama</Text>
-            <Text style={styles.sectionSubtitle}>Navigasi fungsional InvenGo</Text>
+            <Text style={styles.sectionSubtitle}>
+              Navigasi fungsional InvenGo
+            </Text>
           </View>
         </View>
 
@@ -224,15 +250,28 @@ export default function App() {
               activeOpacity={0.75}
               onPress={() => handleMenuPress(menu.title)}
             >
-              <View style={[styles.menuIconContainer, { backgroundColor: menu.badgeBg }]}>
-                <Ionicons name={menu.iconName} size={28} color={menu.accentColor} />
+              <View
+                style={[
+                  styles.menuIconContainer,
+                  { backgroundColor: menu.badgeBg },
+                ]}
+              >
+                <Ionicons
+                  name={menu.iconName as any}
+                  size={28}
+                  color={menu.accentColor}
+                />
               </View>
 
               <View style={styles.menuContent}>
                 <View style={styles.menuTitleRow}>
                   <Text style={styles.menuTitle}>{menu.title}</Text>
-                  <View style={[styles.tagBadge, { backgroundColor: menu.badgeBg }]}>
-                    <Text style={[styles.tagText, { color: menu.accentColor }]}>{menu.tag}</Text>
+                  <View
+                    style={[styles.tagBadge, { backgroundColor: menu.badgeBg }]}
+                  >
+                    <Text style={[styles.tagText, { color: menu.accentColor }]}>
+                      {menu.tag}
+                    </Text>
                   </View>
                 </View>
                 <Text style={styles.menuSubtitle}>{menu.subtitle}</Text>
@@ -255,13 +294,14 @@ export default function App() {
             </View>
             <Text style={styles.auditTitle}>Stok Opname Q3 Segera Dimulai</Text>
             <Text style={styles.auditDesc}>
-              Pastikan verifikasi fisik barang telah disinkronkan sebelum tanggal 30 bulan ini.
+              Pastikan verifikasi fisik barang telah disinkronkan sebelum
+              tanggal 30 bulan ini.
             </Text>
           </View>
           <TouchableOpacity
             style={styles.auditButton}
             activeOpacity={0.8}
-            onPress={() => handleActionPress('Detail Audit')}
+            onPress={() => handleActionPress("Detail Audit")}
           >
             <Text style={styles.auditButtonText}>Lihat</Text>
           </TouchableOpacity>
@@ -272,28 +312,38 @@ export default function App() {
       <View style={styles.bottomNav}>
         <TouchableOpacity
           style={styles.navItem}
-          onPress={() => setActiveTab('home')}
+          onPress={() => setActiveTab("home")}
         >
           <Ionicons
-            name={activeTab === 'home' ? 'home' : 'home-outline'}
+            name={activeTab === "home" ? "home" : "home-outline"}
             size={22}
-            color={activeTab === 'home' ? '#4F46E5' : '#94A3B8'}
+            color={activeTab === "home" ? "#4F46E5" : "#94A3B8"}
           />
-          <Text style={[styles.navLabel, activeTab === 'home' && styles.navLabelActive]}>
+          <Text
+            style={[
+              styles.navLabel,
+              activeTab === "home" && styles.navLabelActive,
+            ]}
+          >
             Beranda
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.navItem}
-          onPress={() => setActiveTab('items')}
+          onPress={() => setActiveTab("items")}
         >
           <Ionicons
-            name={activeTab === 'items' ? 'cube' : 'cube-outline'}
+            name={activeTab === "items" ? "cube" : "cube-outline"}
             size={22}
-            color={activeTab === 'items' ? '#4F46E5' : '#94A3B8'}
+            color={activeTab === "items" ? "#4F46E5" : "#94A3B8"}
           />
-          <Text style={[styles.navLabel, activeTab === 'items' && styles.navLabelActive]}>
+          <Text
+            style={[
+              styles.navLabel,
+              activeTab === "items" && styles.navLabelActive,
+            ]}
+          >
             Barang
           </Text>
         </TouchableOpacity>
@@ -302,35 +352,45 @@ export default function App() {
         <TouchableOpacity
           style={styles.centerFab}
           activeOpacity={0.85}
-          onPress={() => handleActionPress('Tambah Barang Baru')}
+          onPress={() => handleActionPress("Tambah Barang Baru")}
         >
           <Ionicons name="add" size={28} color="#FFFFFF" />
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.navItem}
-          onPress={() => setActiveTab('history')}
+          onPress={() => setActiveTab("history")}
         >
           <Ionicons
-            name={activeTab === 'history' ? 'time' : 'time-outline'}
+            name={activeTab === "history" ? "time" : "time-outline"}
             size={22}
-            color={activeTab === 'history' ? '#4F46E5' : '#94A3B8'}
+            color={activeTab === "history" ? "#4F46E5" : "#94A3B8"}
           />
-          <Text style={[styles.navLabel, activeTab === 'history' && styles.navLabelActive]}>
+          <Text
+            style={[
+              styles.navLabel,
+              activeTab === "history" && styles.navLabelActive,
+            ]}
+          >
             Riwayat
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.navItem}
-          onPress={() => setActiveTab('settings')}
+          onPress={() => setActiveTab("settings")}
         >
           <Ionicons
-            name={activeTab === 'settings' ? 'settings' : 'settings-outline'}
+            name={activeTab === "settings" ? "settings" : "settings-outline"}
             size={22}
-            color={activeTab === 'settings' ? '#4F46E5' : '#94A3B8'}
+            color={activeTab === "settings" ? "#4F46E5" : "#94A3B8"}
           />
-          <Text style={[styles.navLabel, activeTab === 'settings' && styles.navLabelActive]}>
+          <Text
+            style={[
+              styles.navLabel,
+              activeTab === "settings" && styles.navLabelActive,
+            ]}
+          >
             Pengaturan
           </Text>
         </TouchableOpacity>
@@ -342,10 +402,10 @@ export default function App() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#3730A3',
+    backgroundColor: "#3730A3",
   },
   headerBackground: {
-    backgroundColor: '#3730A3',
+    backgroundColor: "#3730A3",
     paddingHorizontal: 20,
     paddingTop: StatusBar.currentHeight ? StatusBar.currentHeight + 8 : 16,
     paddingBottom: 22,
@@ -353,24 +413,24 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 28,
   },
   topNavbar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 16,
   },
   brandRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
   },
   headerLogoContainer: {
     width: 44,
     height: 44,
     borderRadius: 14,
-    backgroundColor: '#4F46E5',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
+    backgroundColor: "#4F46E5",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 6,
@@ -378,78 +438,78 @@ const styles = StyleSheet.create({
   },
   brandName: {
     fontSize: 22,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    fontWeight: "800",
+    color: "#FFFFFF",
     letterSpacing: 0.5,
   },
   brandTagline: {
     fontSize: 12,
-    color: '#C7D2FE',
-    fontWeight: '500',
+    color: "#C7D2FE",
+    fontWeight: "500",
   },
   topActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
   },
   iconButton: {
     width: 38,
     height: 38,
     borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    justifyContent: "center",
+    alignItems: "center",
+    position: "relative",
   },
   notificationBadge: {
-    position: 'absolute',
+    position: "absolute",
     top: 8,
     right: 8,
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#EF4444',
+    backgroundColor: "#EF4444",
     borderWidth: 1.5,
-    borderColor: '#3730A3',
+    borderColor: "#3730A3",
   },
   profileButton: {
     width: 38,
     height: 38,
     borderRadius: 12,
-    backgroundColor: '#EEF2FF',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#EEF2FF",
+    justifyContent: "center",
+    alignItems: "center",
   },
   heroContent: {
     marginTop: 6,
   },
   heroGreeting: {
     fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
+    fontWeight: "700",
+    color: "#FFFFFF",
     marginBottom: 4,
   },
   heroDescription: {
     fontSize: 13,
-    color: '#E0E7FF',
+    color: "#E0E7FF",
     lineHeight: 19,
     marginBottom: 16,
   },
   quickBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
   },
   searchFakeInput: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
     borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 10,
     gap: 10,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 4,
@@ -457,16 +517,16 @@ const styles = StyleSheet.create({
   },
   searchPlaceholder: {
     fontSize: 13,
-    color: '#94A3B8',
+    color: "#94A3B8",
   },
   scanButton: {
     width: 44,
     height: 44,
     borderRadius: 14,
-    backgroundColor: '#4F46E5',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
+    backgroundColor: "#4F46E5",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 4,
@@ -474,7 +534,7 @@ const styles = StyleSheet.create({
   },
   scrollContainer: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: "#F8FAFC",
   },
   scrollContent: {
     paddingHorizontal: 20,
@@ -482,103 +542,103 @@ const styles = StyleSheet.create({
     paddingBottom: 28,
   },
   sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
     marginBottom: 14,
   },
   sectionTitle: {
     fontSize: 17,
-    fontWeight: '700',
-    color: '#0F172A',
+    fontWeight: "700",
+    color: "#0F172A",
   },
   sectionSubtitle: {
     fontSize: 12,
-    color: '#64748B',
+    color: "#64748B",
     marginTop: 2,
   },
   linkText: {
     fontSize: 13,
-    color: '#4F46E5',
-    fontWeight: '600',
+    color: "#4F46E5",
+    fontWeight: "600",
   },
   statsGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     gap: 10,
   },
   statCard: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 16,
     padding: 12,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
-    shadowColor: '#0F172A',
+    borderColor: "#F1F5F9",
+    shadowColor: "#0F172A",
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.04,
     shadowRadius: 6,
     elevation: 2,
   },
   statTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 10,
   },
   statIconWrapper: {
     width: 36,
     height: 36,
     borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   statUnit: {
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: "700",
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   statValue: {
     fontSize: 20,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontWeight: "800",
+    color: "#0F172A",
     letterSpacing: 0.2,
   },
   statTitle: {
     fontSize: 11,
-    color: '#475569',
-    fontWeight: '600',
+    color: "#475569",
+    fontWeight: "600",
     marginTop: 2,
     marginBottom: 8,
   },
   statTrendRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
     borderTopWidth: 1,
-    borderTopColor: '#F8FAFC',
+    borderTopColor: "#F8FAFC",
     paddingTop: 6,
   },
   statTrendText: {
     fontSize: 10,
-    color: '#64748B',
+    color: "#64748B",
     flex: 1,
   },
   menuContainer: {
     gap: 12,
   },
   menuCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
     borderRadius: 18,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#0F172A',
+    borderColor: "#E2E8F0",
+    shadowColor: "#0F172A",
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
@@ -588,23 +648,23 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginRight: 14,
   },
   menuContent: {
     flex: 1,
   },
   menuTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: 2,
   },
   menuTitle: {
     fontSize: 15,
-    fontWeight: '700',
-    color: '#0F172A',
+    fontWeight: "700",
+    color: "#0F172A",
   },
   tagBadge: {
     paddingHorizontal: 8,
@@ -613,17 +673,17 @@ const styles = StyleSheet.create({
   },
   tagText: {
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   menuSubtitle: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#64748B',
+    fontWeight: "600",
+    color: "#64748B",
     marginBottom: 4,
   },
   menuDescription: {
     fontSize: 12,
-    color: '#64748B',
+    color: "#64748B",
     lineHeight: 16,
   },
   menuChevron: {
@@ -631,98 +691,99 @@ const styles = StyleSheet.create({
   },
   auditBanner: {
     marginTop: 20,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: "#ECFDF5",
     borderWidth: 1,
-    borderColor: '#A7F3D0',
+    borderColor: "#A7F3D0",
     borderRadius: 16,
     padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   auditTextCol: {
     flex: 1,
     paddingRight: 12,
   },
   auditHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
     marginBottom: 4,
   },
   auditTag: {
     fontSize: 11,
-    fontWeight: '700',
-    color: '#065F46',
-    textTransform: 'uppercase',
+    fontWeight: "700",
+    color: "#065F46",
+    textTransform: "uppercase",
   },
   auditTitle: {
     fontSize: 14,
-    fontWeight: '700',
-    color: '#064E3B',
+    fontWeight: "700",
+    color: "#064E3B",
     marginBottom: 4,
   },
   auditDesc: {
     fontSize: 12,
-    color: '#047857',
+    color: "#047857",
     lineHeight: 16,
   },
   auditButton: {
-    backgroundColor: '#059669',
+    backgroundColor: "#059669",
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 10,
-    shadowColor: '#059669',
+    shadowColor: "#059669",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 2,
   },
   auditButtonText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   bottomNav: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-    backgroundColor: '#FFFFFF',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-around",
+    backgroundColor: "#FFFFFF",
     paddingVertical: 10,
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
-    position: 'relative',
+    borderTopColor: "#E2E8F0",
+    position: "relative",
     height: 64,
   },
   navItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     flex: 1,
   },
   navLabel: {
     fontSize: 11,
-    color: '#94A3B8',
+    color: "#94A3B8",
     marginTop: 3,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   navLabelActive: {
-    color: '#4F46E5',
-    fontWeight: '700',
+    color: "#4F46E5",
+    fontWeight: "700",
   },
   centerFab: {
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: '#4F46E5',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#4F46E5",
+    justifyContent: "center",
+    alignItems: "center",
     marginTop: -28,
-    shadowColor: '#4F46E5',
+    shadowColor: "#4F46E5",
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.35,
     shadowRadius: 8,
     elevation: 6,
     borderWidth: 3,
-    borderColor: '#FFFFFF',
+    borderColor: "#FFFFFF",
   },
-});``
+});
+``;
