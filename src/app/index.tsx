@@ -1,6 +1,8 @@
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from "expo-secure-store";
 import { StatusBar as ExpoStatusBar } from "expo-status-bar";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Alert,
   Dimensions,
@@ -9,14 +11,108 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 
 const { width } = Dimensions.get("window");
 
+// Helper Storage
+const STORAGE_KEYS = {
+  IS_LOGGED_IN: "IS_LOGGED_IN",
+  USER_EMAIL: "USER_EMAIL",
+  USER_PASSWORD: "USER_PASSWORD",
+};
+
 export default function App() {
   const [activeTab, setActiveTab] = useState("home");
+
+  // State Autentikasi
+  const [authState, setAuthState] = useState<"loading" | "register" | "login" | "authenticated">("loading");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  // Cek Status Auth saat Aplikasi Pertama Kali Dibuka
+  useEffect(() => {
+    checkInitialAuth();
+  }, []);
+
+  const checkInitialAuth = async () => {
+    try {
+      // Ambil status login dari Local Storage
+      const isLoggedIn = await AsyncStorage.getItem(STORAGE_KEYS.IS_LOGGED_IN);
+      // Ambil data akun dari Secure Storage
+      const savedEmail = await SecureStore.getItemAsync(STORAGE_KEYS.USER_EMAIL);
+
+      if (isLoggedIn === "true" && savedEmail) {
+        setAuthState("authenticated");
+      } else if (savedEmail) {
+        setAuthState("login");
+      } else {
+        setAuthState("register");
+      }
+    } catch (e) {
+      setAuthState("register");
+    }
+  };
+
+  // Process Register
+  const handleRegister = async () => {
+    if (!email.trim() || !password.trim()) {
+      return Alert.alert("Peringatan", "Harap isi Email dan Password!");
+    }
+
+    try {
+      // Simpan credential secara aman di Secure Storage
+      await SecureStore.setItemAsync(STORAGE_KEYS.USER_EMAIL, email.trim());
+      await SecureStore.setItemAsync(STORAGE_KEYS.USER_PASSWORD, password);
+
+      Alert.alert("Registrasi Berhasil", "Akun berhasil dibuat. Silakan login!", [
+        {
+          text: "OK",
+          onPress: () => {
+            setPassword("");
+            setAuthState("login");
+          },
+        },
+      ]);
+    } catch (e) {
+      Alert.alert("Error", "Gagal menyimpan data pendaftaran.");
+    }
+  };
+
+  // Process Login
+  const handleLogin = async () => {
+    if (!email.trim() || !password.trim()) {
+      return Alert.alert("Peringatan", "Harap isi Email dan Password!");
+    }
+
+    try {
+      const savedEmail = await SecureStore.getItemAsync(STORAGE_KEYS.USER_EMAIL);
+      const savedPassword = await SecureStore.getItemAsync(STORAGE_KEYS.USER_PASSWORD);
+
+      if (email.trim() === savedEmail && password === savedPassword) {
+        // Simpan status login di Local Storage
+        await AsyncStorage.setItem(STORAGE_KEYS.IS_LOGGED_IN, "true");
+        setAuthState("authenticated");
+      } else {
+        Alert.alert("Gagal Login", "Email atau Password tidak cocok!");
+      }
+    } catch (e) {
+      Alert.alert("Error", "Gagal memproses login.");
+    }
+  };
+
+  // Process Logout
+  const handleLogout = async () => {
+    try {
+      await AsyncStorage.removeItem(STORAGE_KEYS.IS_LOGGED_IN);
+      setAuthState("login");
+    } catch (e) {
+      Alert.alert("Error", "Gagal logout.");
+    }
+  };
 
   // Data Statistik Ringkas
   const stats = [
@@ -26,7 +122,7 @@ export default function App() {
       value: "1,428",
       unit: "Item",
       icon: "cube-outline",
-      color: "#4F46E5", // Indigo
+      color: "#4F46E5",
       bgColor: "#EEF2FF",
       trend: "+12 item baru",
     },
@@ -36,7 +132,7 @@ export default function App() {
       value: "86",
       unit: "Aktif",
       icon: "sync-outline",
-      color: "#F59E0B", // Amber
+      color: "#F59E0B",
       bgColor: "#FEF3C7",
       trend: "6 kembali hari ini",
     },
@@ -46,11 +142,11 @@ export default function App() {
       value: "12",
       unit: "Kasus",
       icon: "alert-circle-outline",
-      color: "#EF4444", // Rose Red
+      color: "#EF4444",
       bgColor: "#FEE2E2",
       trend: "2 pending audit",
     },
-  ];
+  ] as const;
 
   // 3 Menu Utama Aplikasi
   const mainMenus = [
@@ -87,16 +183,100 @@ export default function App() {
       accentColor: "#10B981",
       badgeBg: "#D1FAE5",
     },
-  ];
+  ] as const;
 
   const handleMenuPress = (menuTitle: string) => {
     Alert.alert("Navigasi Menu", "Membuka halaman " + menuTitle);
   };
 
   const handleActionPress = (actionName: string) => {
+    if (actionName === "Profil Akun") {
+      Alert.alert("Akun Pengguna", "Pilih aksi untuk sesi akun kamu", [
+        { text: "Batal", style: "cancel" },
+        { text: "Logout", style: "destructive", onPress: handleLogout },
+      ]);
+      return;
+    }
     Alert.alert("Aksi Cepat", "Menjalankan aksi: " + actionName);
   };
 
+  // --- RENDERING FORM REGISTER / LOGIN ---
+  if (authState === "loading") {
+    return (
+      <View style={[styles.safeArea, { justifyContent: "center", alignItems: "center" }]}>
+        <ExpoStatusBar style="light" />
+        <Text style={{ color: "#FFF", fontWeight: "600" }}>Memuat InvenGo...</Text>
+      </View>
+    );
+  }
+
+  if (authState === "register" || authState === "login") {
+    const isRegister = authState === "register";
+    return (
+      <SafeAreaView style={styles.authContainer}>
+        <ExpoStatusBar style="dark" />
+        <View style={styles.authCard}>
+          <View style={styles.authLogoWrapper}>
+            <MaterialCommunityIcons name="cube-scan" size={36} color="#4F46E5" />
+          </View>
+          <Text style={styles.authTitle}>
+            {isRegister ? "Registrasi Akun" : "Selamat Datang"}
+          </Text>
+          <Text style={styles.authSubtitle}>
+            {isRegister
+              ? "Buat akun baru untuk mengakses InvenGo"
+              : "Masukkan email dan password terdaftar"}
+          </Text>
+
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>Email</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="nama@email.com"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+          </View>
+
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>Password</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="••••••••"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+            />
+          </View>
+
+          <TouchableOpacity
+            style={styles.primaryAuthButton}
+            activeOpacity={0.8}
+            onPress={isRegister ? handleRegister : handleLogin}
+          >
+            <Text style={styles.primaryAuthButtonText}>
+              {isRegister ? "Daftar Sekarang" : "Masuk"}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.switchAuthButton}
+            onPress={() => setAuthState(isRegister ? "login" : "register")}
+          >
+            <Text style={styles.switchAuthText}>
+              {isRegister
+                ? "Sudah punya akun? Login di sini"
+                : "Belum punya akun? Register di sini"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // --- RENDERING TAMPILAN UTAMA ---
   return (
     <SafeAreaView style={styles.safeArea}>
       <ExpoStatusBar style="light" />
@@ -404,19 +584,20 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#3730A3",
   },
+  // PERBAIKAN TAMPILAN KEBAWAH:
   headerBackground: {
     backgroundColor: "#3730A3",
     paddingHorizontal: 20,
-    paddingTop: StatusBar.currentHeight ? StatusBar.currentHeight + 8 : 16,
-    paddingBottom: 22,
-    borderBottomLeftRadius: 28,
-    borderBottomRightRadius: 28,
+    paddingTop: StatusBar.currentHeight ? StatusBar.currentHeight : 10, // Dikurangi agar header lebih ke atas
+    paddingBottom: 16,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
   },
   topNavbar: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 12,
   },
   brandRow: {
     flexDirection: "row",
@@ -424,26 +605,22 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   headerLogoContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     backgroundColor: "#4F46E5",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
     elevation: 4,
   },
   brandName: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: "800",
     color: "#FFFFFF",
     letterSpacing: 0.5,
   },
   brandTagline: {
-    fontSize: 12,
+    fontSize: 11,
     color: "#C7D2FE",
     fontWeight: "500",
   },
@@ -453,9 +630,9 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   iconButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     backgroundColor: "rgba(255, 255, 255, 0.15)",
     justifyContent: "center",
     alignItems: "center",
@@ -463,8 +640,8 @@ const styles = StyleSheet.create({
   },
   notificationBadge: {
     position: "absolute",
-    top: 8,
-    right: 8,
+    top: 6,
+    right: 6,
     width: 8,
     height: 8,
     borderRadius: 4,
@@ -473,27 +650,27 @@ const styles = StyleSheet.create({
     borderColor: "#3730A3",
   },
   profileButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     backgroundColor: "#EEF2FF",
     justifyContent: "center",
     alignItems: "center",
   },
   heroContent: {
-    marginTop: 6,
+    marginTop: 2,
   },
   heroGreeting: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "700",
     color: "#FFFFFF",
-    marginBottom: 4,
+    marginBottom: 2,
   },
   heroDescription: {
-    fontSize: 13,
+    fontSize: 12,
     color: "#E0E7FF",
-    lineHeight: 19,
-    marginBottom: 16,
+    lineHeight: 17,
+    marginBottom: 12,
   },
   quickBar: {
     flexDirection: "row",
@@ -505,32 +682,22 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#FFFFFF",
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    gap: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 8,
   },
   searchPlaceholder: {
-    fontSize: 13,
+    fontSize: 12,
     color: "#94A3B8",
   },
   scanButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     backgroundColor: "#4F46E5",
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 3,
   },
   scrollContainer: {
     flex: 1,
@@ -538,27 +705,27 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingTop: 16,
     paddingBottom: 28,
   },
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-end",
-    marginBottom: 14,
+    marginBottom: 12,
   },
   sectionTitle: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: "700",
     color: "#0F172A",
   },
   sectionSubtitle: {
-    fontSize: 12,
+    fontSize: 11,
     color: "#64748B",
     marginTop: 2,
   },
   linkText: {
-    fontSize: 13,
+    fontSize: 12,
     color: "#4F46E5",
     fontWeight: "600",
   },
@@ -570,49 +737,44 @@ const styles = StyleSheet.create({
   statCard: {
     flex: 1,
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 12,
+    borderRadius: 14,
+    padding: 10,
     borderWidth: 1,
     borderColor: "#F1F5F9",
-    shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
     elevation: 2,
   },
   statTopRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 10,
+    marginBottom: 8,
   },
   statIconWrapper: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+    width: 32,
+    height: 32,
+    borderRadius: 8,
     justifyContent: "center",
     alignItems: "center",
   },
   statUnit: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: "700",
-    paddingHorizontal: 6,
+    paddingHorizontal: 5,
     paddingVertical: 2,
-    borderRadius: 6,
+    borderRadius: 4,
     overflow: "hidden",
   },
   statValue: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "800",
     color: "#0F172A",
-    letterSpacing: 0.2,
   },
   statTitle: {
-    fontSize: 11,
+    fontSize: 10,
     color: "#475569",
     fontWeight: "600",
     marginTop: 2,
-    marginBottom: 8,
+    marginBottom: 6,
   },
   statTrendRow: {
     flexDirection: "row",
@@ -620,37 +782,33 @@ const styles = StyleSheet.create({
     gap: 4,
     borderTopWidth: 1,
     borderTopColor: "#F8FAFC",
-    paddingTop: 6,
+    paddingTop: 4,
   },
   statTrendText: {
-    fontSize: 10,
+    fontSize: 9,
     color: "#64748B",
     flex: 1,
   },
   menuContainer: {
-    gap: 12,
+    gap: 10,
   },
   menuCard: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#FFFFFF",
-    borderRadius: 18,
-    padding: 16,
+    borderRadius: 16,
+    padding: 14,
     borderWidth: 1,
     borderColor: "#E2E8F0",
-    shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
     elevation: 2,
   },
   menuIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
+    width: 48,
+    height: 48,
+    borderRadius: 14,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 14,
+    marginRight: 12,
   },
   menuContent: {
     flex: 1,
@@ -662,85 +820,80 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   menuTitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "700",
     color: "#0F172A",
   },
   tagBadge: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
   },
   tagText: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: "700",
   },
   menuSubtitle: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "600",
     color: "#64748B",
-    marginBottom: 4,
+    marginBottom: 2,
   },
   menuDescription: {
-    fontSize: 12,
+    fontSize: 11,
     color: "#64748B",
-    lineHeight: 16,
+    lineHeight: 15,
   },
   menuChevron: {
-    marginLeft: 8,
+    marginLeft: 6,
   },
   auditBanner: {
-    marginTop: 20,
+    marginTop: 18,
     backgroundColor: "#ECFDF5",
     borderWidth: 1,
     borderColor: "#A7F3D0",
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 14,
+    padding: 14,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
   auditTextCol: {
     flex: 1,
-    paddingRight: 12,
+    paddingRight: 10,
   },
   auditHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   auditTag: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "700",
     color: "#065F46",
     textTransform: "uppercase",
   },
   auditTitle: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "700",
     color: "#064E3B",
-    marginBottom: 4,
+    marginBottom: 2,
   },
   auditDesc: {
-    fontSize: 12,
+    fontSize: 11,
     color: "#047857",
-    lineHeight: 16,
+    lineHeight: 15,
   },
   auditButton: {
     backgroundColor: "#059669",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
-    shadowColor: "#059669",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 2,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
   },
   auditButtonText: {
     color: "#FFFFFF",
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700",
   },
   bottomNav: {
@@ -748,11 +901,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-around",
     backgroundColor: "#FFFFFF",
-    paddingVertical: 10,
+    paddingVertical: 8,
     borderTopWidth: 1,
     borderTopColor: "#E2E8F0",
-    position: "relative",
-    height: 64,
+    height: 60,
   },
   navItem: {
     alignItems: "center",
@@ -760,9 +912,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   navLabel: {
-    fontSize: 11,
+    fontSize: 10,
     color: "#94A3B8",
-    marginTop: 3,
+    marginTop: 2,
     fontWeight: "500",
   },
   navLabelActive: {
@@ -770,22 +922,91 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   centerFab: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: "#4F46E5",
     justifyContent: "center",
     alignItems: "center",
-    marginTop: -28,
-    shadowColor: "#4F46E5",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
-    elevation: 6,
+    marginTop: -24,
     borderWidth: 3,
     borderColor: "#FFFFFF",
+    elevation: 6,
+  },
+
+  // STYLES HALAMAN AUTHENTICATION (REGISTER / LOGIN)
+  authContainer: {
+    flex: 1,
+    backgroundColor: "#F1F5F9",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+  authCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 24,
+    elevation: 4,
+  },
+  authLogoWrapper: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: "#EEF2FF",
+    alignSelf: "center",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  authTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#0F172A",
+    textAlign: "center",
+    marginBottom: 4,
+  },
+  authSubtitle: {
+    fontSize: 12,
+    color: "#64748B",
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  formGroup: {
+    marginBottom: 14,
+  },
+  label: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#334155",
+    marginBottom: 6,
+  },
+  input: {
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 13,
+  },
+  primaryAuthButton: {
+    backgroundColor: "#4F46E5",
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: "center",
+    marginTop: 10,
+  },
+  primaryAuthButtonText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  switchAuthButton: {
+    marginTop: 16,
+    alignItems: "center",
+  },
+  switchAuthText: {
+    color: "#4F46E5",
+    fontSize: 12,
+    fontWeight: "600",
   },
 });
-``;
-
-// Update kontributor zaenabazikha
