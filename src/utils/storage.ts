@@ -1,8 +1,4 @@
-// Memory storage fallback aman untuk React Native / Expo
-const memoryStorage: Record<string, string> = {
-  isLoggedIn: "true",
-  userEmail: "admin@invengo.com",
-};
+const memoryStorage: Record<string, string> = {};
 
 export const getLocalStorage = async (key: string): Promise<string | null> => {
   try {

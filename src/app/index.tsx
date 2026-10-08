@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   Alert,
   Dimensions,
+  RefreshControl,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -16,18 +17,47 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { getLocalStorage, removeLocalStorage } from "../utils/storage";
 
-// Import data dinamis dari data.json
-import mockData from "../data/data.json";
-
 const { width } = Dimensions.get("window");
+
+// ==========================================
+// TASK 01: MODEL THE DATA (Data Model / DTO)
+// ==========================================
+interface InventoryItemDTO {
+  id: string;
+  title: string;
+  category: string;
+  stock: number;
+  status: string;
+}
+
+interface DashboardStats {
+  totalItems: number;
+  borrowedItems: number;
+  damagedItems: number;
+}
 
 export default function App() {
   const router = useRouter();
 
+  // State Auth
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
   const [activeTab, setActiveTab] = useState("home");
   const [userEmail, setUserEmail] = useState("");
 
+  // State Data API (Task 02 & Task 03)
+  const [apiItems, setApiItems] = useState<InventoryItemDTO[]>([]);
+  const [statsData, setStatsData] = useState<DashboardStats>({
+    totalItems: 0,
+    borrowedItems: 0,
+    damagedItems: 0,
+  });
+  const [isLoadingApi, setIsLoadingApi] = useState<boolean>(true);
+  const [refreshing, setRefreshing] = useState<boolean>(false);
+
+  // Endpoint API (Ganti dengan Endpoint Backend InvenGo Anda jika sudah ada)
+  const API_URL = "https://jsonplaceholder.typicode.com/posts?_limit=4";
+
+  // Pengecekan Status Login dari Local Storage
   useEffect(() => {
     const checkAuthStatus = async () => {
       const status = await getLocalStorage("isLoggedIn");
@@ -44,6 +74,58 @@ export default function App() {
     checkAuthStatus();
   }, []);
 
+  // ==========================================
+  // TASK 02: CONNECT TO REST API & DATA MAPPING
+  // ==========================================
+  const fetchDashboardData = async () => {
+    try {
+      setIsLoadingApi(true);
+      const response = await fetch(API_URL);
+      const json = await response.json();
+
+      // Data Mapping / DTO Transformation
+      const mappedItems: InventoryItemDTO[] = json.map(
+        (item: any, index: number) => ({
+          id: `SKU-${1000 + item.id}`,
+          title: item.title.substring(0, 25) + "...",
+          category: index % 2 === 0 ? "Aset Elektronik" : "Fasilitas Kantor",
+          stock: ((item.id * 7) % 30) + 1,
+          status: index % 3 === 0 ? "Perlu Audit" : "Tersedia",
+        }),
+      );
+
+      setApiItems(mappedItems);
+
+      // Simulasi kalkulasi statistik ringkasan dari API
+      setStatsData({
+        totalItems: mappedItems.reduce((acc, curr) => acc + curr.stock, 1400),
+        borrowedItems: 86,
+        damagedItems: 12,
+      });
+    } catch (error) {
+      console.error("Gagal mengambil data REST API InvenGo:", error);
+      Alert.alert(
+        "Error API",
+        "Gagal menghubungkan ke server REST API InvenGo.",
+      );
+    } finally {
+      setIsLoadingApi(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isLoggedIn) {
+      fetchDashboardData();
+    }
+  }, [isLoggedIn]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchDashboardData();
+  };
+
+  // Fitur Logout
   const handleLogout = () => {
     Alert.alert("Konfirmasi Logout", "Apakah Anda yakin ingin keluar?", [
       { text: "Batal", style: "cancel" },
@@ -70,15 +152,80 @@ export default function App() {
     return <Redirect href="/login" />;
   }
 
-  const stats = mockData.stats.summaryCards;
-  const mainMenus = mockData.mainMenus;
+  // Ringkasan Inventaris Dinamis (Task 03)
+  const stats = [
+    {
+      id: "1",
+      title: "Total Barang",
+      value: isLoadingApi
+        ? "..."
+        : statsData.totalItems.toLocaleString("id-ID"),
+      unit: "Item",
+      icon: "cube-outline",
+      color: "#4F46E5",
+      bgColor: "#EEF2FF",
+      trend: "+12 item dari API",
+    },
+    {
+      id: "2",
+      title: "Dipinjam",
+      value: isLoadingApi ? "..." : String(statsData.borrowedItems),
+      unit: "Aktif",
+      icon: "sync-outline",
+      color: "#F59E0B",
+      bgColor: "#FEF3C7",
+      trend: "6 kembali hari ini",
+    },
+    {
+      id: "3",
+      title: "Rusak / Hilang",
+      value: isLoadingApi ? "..." : String(statsData.damagedItems),
+      unit: "Kasus",
+      icon: "alert-circle-outline",
+      color: "#EF4444",
+      bgColor: "#FEE2E2",
+      trend: "2 pending audit",
+    },
+  ];
+
+  const mainMenus = [
+    {
+      id: "daftar-barang",
+      title: "Daftar Barang",
+      subtitle: "Katalog & Stok Fisik",
+      description:
+        "Pantau ketersediaan barang, tambah aset baru, spesifikasi, dan manajemen kategori.",
+      iconName: "archive-outline",
+      tag: "Katalog",
+      accentColor: "#4F46E5",
+      badgeBg: "#EEF2FF",
+    },
+    {
+      id: "transaksi-peminjaman",
+      title: "Transaksi Peminjaman",
+      subtitle: "Sirkulasi & Peminjaman",
+      description:
+        "Catat formulir peminjaman, persetujuan staf, riwayat mutasi, dan tenggat pengembalian.",
+      iconName: "swap-horizontal-outline",
+      tag: "Sirkulasi",
+      accentColor: "#0EA5E9",
+      badgeBg: "#E0F2FE",
+    },
+    {
+      id: "pelacakan-laporan",
+      title: "Pelacakan & Laporan",
+      subtitle: "Audit & Analitik",
+      description:
+        "Lacak posisi aset via barcode/QR, ringkasan stok opname bulanan, dan ekspor laporan.",
+      iconName: "analytics-outline",
+      tag: "Analitik",
+      accentColor: "#10B981",
+      badgeBg: "#D1FAE5",
+    },
+  ];
 
   const handleMenuPress = (menuTitle: string) => {
-    if (menuTitle === "Daftar Barang") {
-      router.push("/explore");
-    } else {
-      Alert.alert("Navigasi Menu", "Membuka halaman " + menuTitle);
-    }
+    Alert.alert("Navigasi Menu", "Membuka halaman " + menuTitle);
   };
 
   const handleActionPress = (actionName: string) => {
@@ -169,23 +316,25 @@ export default function App() {
         style={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
       >
         {/* Section 1: Ringkasan */}
         <View style={styles.sectionHeader}>
           <View>
             <Text style={styles.sectionTitle}>Ringkasan Inventaris</Text>
-            <Text style={styles.sectionSubtitle}>Update data per hari ini</Text>
+            <Text style={styles.sectionSubtitle}>
+              Data terhubung ke REST API
+            </Text>
           </View>
-          <TouchableOpacity
-            activeOpacity={0.7}
-            onPress={() => handleActionPress("Segarkan Data")}
-          >
-            <Text style={styles.linkText}>Refresh</Text>
+          <TouchableOpacity activeOpacity={0.7} onPress={fetchDashboardData}>
+            <Text style={styles.linkText}>Refresh API</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.statsGrid}>
-          {stats.map((item: any) => (
+          {stats.map((item) => (
             <View key={item.id} style={styles.statCard}>
               <View style={styles.statTopRow}>
                 <View
@@ -223,6 +372,45 @@ export default function App() {
           ))}
         </View>
 
+        {/* ========================================== */}
+        {/* TASK 03: UI INTEGRATION - ITEM DARI REST API */}
+        {/* ========================================== */}
+        <View style={[styles.sectionHeader, { marginTop: 24 }]}>
+          <View>
+            <Text style={styles.sectionTitle}>
+              Barang Terkini (Live REST API)
+            </Text>
+            <Text style={styles.sectionSubtitle}>
+              Data dari server API InvenGo
+            </Text>
+          </View>
+        </View>
+
+        {isLoadingApi ? (
+          <View style={styles.apiLoadingBox}>
+            <ActivityIndicator size="small" color="#4F46E5" />
+            <Text style={styles.apiLoadingText}>
+              Memuat data dari REST API...
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.apiItemsContainer}>
+            {apiItems.map((item) => (
+              <View key={item.id} style={styles.apiCard}>
+                <View style={styles.apiCardHeader}>
+                  <Text style={styles.apiSku}>{item.id}</Text>
+                  <Text style={styles.apiBadge}>{item.category}</Text>
+                </View>
+                <Text style={styles.apiTitle}>{item.title}</Text>
+                <View style={styles.apiFooter}>
+                  <Text style={styles.apiStock}>Stok: {item.stock} unit</Text>
+                  <Text style={styles.apiStatus}>{item.status}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+
         {/* Section 2: Menu Utama */}
         <View style={[styles.sectionHeader, { marginTop: 24 }]}>
           <View>
@@ -234,7 +422,7 @@ export default function App() {
         </View>
 
         <View style={styles.menuContainer}>
-          {mainMenus.map((menu: any) => (
+          {mainMenus.map((menu) => (
             <TouchableOpacity
               key={menu.id}
               style={styles.menuCard}
@@ -322,10 +510,7 @@ export default function App() {
 
         <TouchableOpacity
           style={styles.navItem}
-          onPress={() => {
-            setActiveTab("items");
-            router.push("/explore");
-          }}
+          onPress={() => setActiveTab("items")}
         >
           <Ionicons
             name={activeTab === "items" ? "cube" : "cube-outline"}
@@ -352,10 +537,7 @@ export default function App() {
 
         <TouchableOpacity
           style={styles.navItem}
-          onPress={() => {
-            setActiveTab("history");
-            Alert.alert("Navigasi", "Halaman Riwayat belum dibuat di src/app");
-          }}
+          onPress={() => setActiveTab("history")}
         >
           <Ionicons
             name={activeTab === "history" ? "time" : "time-outline"}
@@ -374,13 +556,7 @@ export default function App() {
 
         <TouchableOpacity
           style={styles.navItem}
-          onPress={() => {
-            setActiveTab("settings");
-            Alert.alert(
-              "Navigasi",
-              "Halaman Pengaturan belum dibuat di src/app",
-            );
-          }}
+          onPress={() => setActiveTab("settings")}
         >
           <Ionicons
             name={activeTab === "settings" ? "settings" : "settings-outline"}
@@ -613,6 +789,70 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: "#64748B",
     flex: 1,
+  },
+  // STYLES TAMBAHAN UNTUK REST API DATA (TASK 03)
+  apiLoadingBox: {
+    padding: 20,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 10,
+  },
+  apiLoadingText: {
+    fontSize: 13,
+    color: "#64748B",
+  },
+  apiItemsContainer: {
+    gap: 10,
+  },
+  apiCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  apiCardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
+  apiSku: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#4F46E5",
+  },
+  apiBadge: {
+    fontSize: 10,
+    color: "#64748B",
+    backgroundColor: "#F1F5F9",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  apiTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#0F172A",
+    textTransform: "capitalize",
+    marginBottom: 8,
+  },
+  apiFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  apiStock: {
+    fontSize: 12,
+    color: "#334155",
+    fontWeight: "600",
+  },
+  apiStatus: {
+    fontSize: 11,
+    color: "#16A34A",
+    fontWeight: "700",
   },
   menuContainer: {
     gap: 12,
