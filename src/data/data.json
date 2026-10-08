@@ -1,0 +1,107 @@
+{
+  "stats": {
+    "totalItems": 1445,
+    "borrowedItems": 86,
+    "damagedItems": 12,
+    "summaryCards": [
+      {
+        "id": "1",
+        "title": "Total Barang",
+        "value": "1.445",
+        "unit": "Item",
+        "icon": "cube-outline",
+        "color": "#4F46E5",
+        "bgColor": "#EEF2FF",
+        "trend": "+12 item dari API"
+      },
+      {
+        "id": "2",
+        "title": "Dipinjam",
+        "value": "86",
+        "unit": "Aktif",
+        "icon": "sync-outline",
+        "color": "#F59E0B",
+        "bgColor": "#FEF3C7",
+        "trend": "6 kembali hari ini"
+      },
+      {
+        "id": "3",
+        "title": "Rusak / Hilang",
+        "value": "12",
+        "unit": "Kasus",
+        "icon": "alert-circle-outline",
+        "color": "#EF4444",
+        "bgColor": "#FEE2E2",
+        "trend": "2 pending audit"
+      }
+    ]
+  },
+  "inventory": [
+    {
+      "id": "SKU-1001",
+      "title": "sunt aut facere repellat...",
+      "category": "Aset Elektronik",
+      "stock": 8,
+      "status": "Perlu Audit"
+    },
+    {
+      "id": "SKU-1002",
+      "title": "qui est esse...",
+      "category": "Fasilitas Kantor",
+      "stock": 15,
+      "status": "Tersedia"
+    },
+    {
+      "id": "SKU-1003",
+      "title": "ea molestias quasi exerc...",
+      "category": "Aset Elektronik",
+      "stock": 22,
+      "status": "Tersedia"
+    },
+    {
+      "id": "SKU-1004",
+      "title": "eum et est occaecati...",
+      "category": "Fasilitas Kantor",
+      "stock": 29,
+      "status": "Perlu Audit"
+    }
+  ],
+  "mainMenus": [
+    {
+      "id": "daftar-barang",
+      "title": "Daftar Barang",
+      "subtitle": "Katalog & Stok Fisik",
+      "description": "Pantau ketersediaan barang, tambah aset baru, spesifikasi, dan manajemen kategori.",
+      "iconName": "archive-outline",
+      "tag": "Katalog",
+      "accentColor": "#4F46E5",
+      "badgeBg": "#EEF2FF"
+    },
+    {
+      "id": "transaksi-peminjaman",
+      "title": "Transaksi Peminjaman",
+      "subtitle": "Sirkulasi & Peminjaman",
+      "description": "Catat formulir peminjaman, persetujuan staf, riwayat mutasi, dan tenggat pengembalian.",
+      "iconName": "swap-horizontal-outline",
+      "tag": "Sirkulasi",
+      "accentColor": "#0EA5E9",
+      "badgeBg": "#E0F2FE"
+    },
+    {
+      "id": "pelacakan-laporan",
+      "title": "Pelacakan & Laporan",
+      "subtitle": "Audit & Analitik",
+      "description": "Lacak posisi aset via barcode/QR, ringkasan stok opname bulanan, dan ekspor laporan.",
+      "iconName": "analytics-outline",
+      "tag": "Analitik",
+      "accentColor": "#10B981",
+      "badgeBg": "#D1FAE5"
+    }
+  ],
+  "auditInfo": {
+    "tag": "Jadwal Audit Berkala",
+    "title": "Stok Opname Q3 Segera Dimulai",
+    "description": "Pastikan verifikasi fisik barang telah disinkronkan sebelum tanggal 30 bulan ini.",
+    "deadline": "30 September"
+  }
+}

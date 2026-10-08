@@ -1,282 +1,90 @@
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as SecureStore from "expo-secure-store";
+import { Redirect, useRouter } from "expo-router";
 import { StatusBar as ExpoStatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Dimensions,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { getLocalStorage, removeLocalStorage } from "../utils/storage";
+
+// Import data dinamis dari data.json
+import mockData from "../data/data.json";
 
 const { width } = Dimensions.get("window");
 
-// Helper Storage
-const STORAGE_KEYS = {
-  IS_LOGGED_IN: "IS_LOGGED_IN",
-  USER_EMAIL: "USER_EMAIL",
-  USER_PASSWORD: "USER_PASSWORD",
-};
-
 export default function App() {
+  const router = useRouter();
+
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
   const [activeTab, setActiveTab] = useState("home");
+  const [userEmail, setUserEmail] = useState("");
 
-  // State Autentikasi
-  const [authState, setAuthState] = useState<"loading" | "register" | "login" | "authenticated">("loading");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-
-  // Cek Status Auth saat Aplikasi Pertama Kali Dibuka
   useEffect(() => {
-    checkInitialAuth();
+    const checkAuthStatus = async () => {
+      const status = await getLocalStorage("isLoggedIn");
+      const savedEmail = await getLocalStorage("userEmail");
+
+      if (status === "true") {
+        setIsLoggedIn(true);
+        if (savedEmail) setUserEmail(savedEmail);
+      } else {
+        setIsLoggedIn(false);
+      }
+    };
+
+    checkAuthStatus();
   }, []);
 
-  const checkInitialAuth = async () => {
-    try {
-      // Ambil status login dari Local Storage
-      const isLoggedIn = await AsyncStorage.getItem(STORAGE_KEYS.IS_LOGGED_IN);
-      // Ambil data akun dari Secure Storage
-      const savedEmail = await SecureStore.getItemAsync(STORAGE_KEYS.USER_EMAIL);
-
-      if (isLoggedIn === "true" && savedEmail) {
-        setAuthState("authenticated");
-      } else if (savedEmail) {
-        setAuthState("login");
-      } else {
-        setAuthState("register");
-      }
-    } catch (e) {
-      setAuthState("register");
-    }
-  };
-
-  // Process Register
-  const handleRegister = async () => {
-    if (!email.trim() || !password.trim()) {
-      return Alert.alert("Peringatan", "Harap isi Email dan Password!");
-    }
-
-    try {
-      // Simpan credential secara aman di Secure Storage
-      await SecureStore.setItemAsync(STORAGE_KEYS.USER_EMAIL, email.trim());
-      await SecureStore.setItemAsync(STORAGE_KEYS.USER_PASSWORD, password);
-
-      Alert.alert("Registrasi Berhasil", "Akun berhasil dibuat. Silakan login!", [
-        {
-          text: "OK",
-          onPress: () => {
-            setPassword("");
-            setAuthState("login");
-          },
+  const handleLogout = () => {
+    Alert.alert("Konfirmasi Logout", "Apakah Anda yakin ingin keluar?", [
+      { text: "Batal", style: "cancel" },
+      {
+        text: "Keluar",
+        style: "destructive",
+        onPress: async () => {
+          await removeLocalStorage("isLoggedIn");
+          setIsLoggedIn(false);
         },
-      ]);
-    } catch (e) {
-      Alert.alert("Error", "Gagal menyimpan data pendaftaran.");
-    }
+      },
+    ]);
   };
 
-  // Process Login
-  const handleLogin = async () => {
-    if (!email.trim() || !password.trim()) {
-      return Alert.alert("Peringatan", "Harap isi Email dan Password!");
-    }
-
-    try {
-      const savedEmail = await SecureStore.getItemAsync(STORAGE_KEYS.USER_EMAIL);
-      const savedPassword = await SecureStore.getItemAsync(STORAGE_KEYS.USER_PASSWORD);
-
-      if (email.trim() === savedEmail && password === savedPassword) {
-        // Simpan status login di Local Storage
-        await AsyncStorage.setItem(STORAGE_KEYS.IS_LOGGED_IN, "true");
-        setAuthState("authenticated");
-      } else {
-        Alert.alert("Gagal Login", "Email atau Password tidak cocok!");
-      }
-    } catch (e) {
-      Alert.alert("Error", "Gagal memproses login.");
-    }
-  };
-
-  // Process Logout
-  const handleLogout = async () => {
-    try {
-      await AsyncStorage.removeItem(STORAGE_KEYS.IS_LOGGED_IN);
-      setAuthState("login");
-    } catch (e) {
-      Alert.alert("Error", "Gagal logout.");
-    }
-  };
-
-  // Data Statistik Ringkas
-  const stats = [
-    {
-      id: "1",
-      title: "Total Barang",
-      value: "1,428",
-      unit: "Item",
-      icon: "cube-outline",
-      color: "#4F46E5",
-      bgColor: "#EEF2FF",
-      trend: "+12 item baru",
-    },
-    {
-      id: "2",
-      title: "Dipinjam",
-      value: "86",
-      unit: "Aktif",
-      icon: "sync-outline",
-      color: "#F59E0B",
-      bgColor: "#FEF3C7",
-      trend: "6 kembali hari ini",
-    },
-    {
-      id: "3",
-      title: "Rusak / Hilang",
-      value: "12",
-      unit: "Kasus",
-      icon: "alert-circle-outline",
-      color: "#EF4444",
-      bgColor: "#FEE2E2",
-      trend: "2 pending audit",
-    },
-  ] as const;
-
-  // 3 Menu Utama Aplikasi
-  const mainMenus = [
-    {
-      id: "daftar-barang",
-      title: "Daftar Barang",
-      subtitle: "Katalog & Stok Fisik",
-      description:
-        "Pantau ketersediaan barang, tambah aset baru, spesifikasi, dan manajemen kategori.",
-      iconName: "archive-outline",
-      tag: "Katalog",
-      accentColor: "#4F46E5",
-      badgeBg: "#EEF2FF",
-    },
-    {
-      id: "transaksi-peminjaman",
-      title: "Transaksi Peminjaman",
-      subtitle: "Sirkulasi & Peminjaman",
-      description:
-        "Catat formulir peminjaman, persetujuan staf, riwayat mutasi, dan tenggat pengembalian.",
-      iconName: "swap-horizontal-outline",
-      tag: "Sirkulasi",
-      accentColor: "#0EA5E9",
-      badgeBg: "#E0F2FE",
-    },
-    {
-      id: "pelacakan-laporan",
-      title: "Pelacakan & Laporan",
-      subtitle: "Audit & Analitik",
-      description:
-        "Lacak posisi aset via barcode/QR, ringkasan stok opname bulanan, dan ekspor laporan.",
-      iconName: "analytics-outline",
-      tag: "Analitik",
-      accentColor: "#10B981",
-      badgeBg: "#D1FAE5",
-    },
-  ] as const;
-
-  const handleMenuPress = (menuTitle: string) => {
-    Alert.alert("Navigasi Menu", "Membuka halaman " + menuTitle);
-  };
-
-  const handleActionPress = (actionName: string) => {
-    if (actionName === "Profil Akun") {
-      Alert.alert("Akun Pengguna", "Pilih aksi untuk sesi akun kamu", [
-        { text: "Batal", style: "cancel" },
-        { text: "Logout", style: "destructive", onPress: handleLogout },
-      ]);
-      return;
-    }
-    Alert.alert("Aksi Cepat", "Menjalankan aksi: " + actionName);
-  };
-
-  // --- RENDERING FORM REGISTER / LOGIN ---
-  if (authState === "loading") {
+  if (isLoggedIn === null) {
     return (
-      <View style={[styles.safeArea, { justifyContent: "center", alignItems: "center" }]}>
-        <ExpoStatusBar style="light" />
-        <Text style={{ color: "#FFF", fontWeight: "600" }}>Memuat InvenGo...</Text>
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#FFFFFF" />
       </View>
     );
   }
 
-  if (authState === "register" || authState === "login") {
-    const isRegister = authState === "register";
-    return (
-      <SafeAreaView style={styles.authContainer}>
-        <ExpoStatusBar style="dark" />
-        <View style={styles.authCard}>
-          <View style={styles.authLogoWrapper}>
-            <MaterialCommunityIcons name="cube-scan" size={36} color="#4F46E5" />
-          </View>
-          <Text style={styles.authTitle}>
-            {isRegister ? "Registrasi Akun" : "Selamat Datang"}
-          </Text>
-          <Text style={styles.authSubtitle}>
-            {isRegister
-              ? "Buat akun baru untuk mengakses InvenGo"
-              : "Masukkan email dan password terdaftar"}
-          </Text>
-
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Email</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="nama@email.com"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-          </View>
-
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Password</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="••••••••"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-            />
-          </View>
-
-          <TouchableOpacity
-            style={styles.primaryAuthButton}
-            activeOpacity={0.8}
-            onPress={isRegister ? handleRegister : handleLogin}
-          >
-            <Text style={styles.primaryAuthButtonText}>
-              {isRegister ? "Daftar Sekarang" : "Masuk"}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.switchAuthButton}
-            onPress={() => setAuthState(isRegister ? "login" : "register")}
-          >
-            <Text style={styles.switchAuthText}>
-              {isRegister
-                ? "Sudah punya akun? Login di sini"
-                : "Belum punya akun? Register di sini"}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    );
+  if (!isLoggedIn) {
+    return <Redirect href="/login" />;
   }
 
-  // --- RENDERING TAMPILAN UTAMA ---
+  const stats = mockData.stats.summaryCards;
+  const mainMenus = mockData.mainMenus;
+
+  const handleMenuPress = (menuTitle: string) => {
+    if (menuTitle === "Daftar Barang") {
+      router.push("/explore");
+    } else {
+      Alert.alert("Navigasi Menu", "Membuka halaman " + menuTitle);
+    }
+  };
+
+  const handleActionPress = (actionName: string) => {
+    Alert.alert("Aksi Cepat", "Menjalankan aksi: " + actionName);
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ExpoStatusBar style="light" />
@@ -293,7 +101,9 @@ export default function App() {
             </View>
             <View>
               <Text style={styles.brandName}>InvenGo</Text>
-              <Text style={styles.brandTagline}>Inventory Master System</Text>
+              <Text style={styles.brandTagline}>
+                {userEmail ? userEmail : "Inventory Master System"}
+              </Text>
             </View>
           </View>
 
@@ -310,17 +120,18 @@ export default function App() {
               />
               <View style={styles.notificationBadge} />
             </TouchableOpacity>
+
             <TouchableOpacity
               style={styles.profileButton}
               activeOpacity={0.7}
-              onPress={() => handleActionPress("Profil Akun")}
+              onPress={handleLogout}
             >
-              <Feather name="user" size={18} color="#3730A3" />
+              <Feather name="log-out" size={18} color="#EF4444" />
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Hero Section / Deskripsi Singkat */}
+        {/* Hero Section */}
         <View style={styles.heroContent}>
           <Text style={styles.heroGreeting}>
             Kelola Aset Lebih Cepat & Akurat 📦
@@ -353,13 +164,13 @@ export default function App() {
         </View>
       </View>
 
-      {/* Konten Scrollable */}
+      {/* Konten Utama */}
       <ScrollView
         style={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Section 1: Statistik Ringkas */}
+        {/* Section 1: Ringkasan */}
         <View style={styles.sectionHeader}>
           <View>
             <Text style={styles.sectionTitle}>Ringkasan Inventaris</Text>
@@ -374,7 +185,7 @@ export default function App() {
         </View>
 
         <View style={styles.statsGrid}>
-          {stats.map((item) => (
+          {stats.map((item: any) => (
             <View key={item.id} style={styles.statCard}>
               <View style={styles.statTopRow}>
                 <View
@@ -403,7 +214,7 @@ export default function App() {
               <Text style={styles.statTitle}>{item.title}</Text>
 
               <View style={styles.statTrendRow}>
-                <Feather name={"info" as any} size={11} color="#64748B" />
+                <Feather name="info" size={11} color="#64748B" />
                 <Text style={styles.statTrendText} numberOfLines={1}>
                   {item.trend}
                 </Text>
@@ -412,7 +223,7 @@ export default function App() {
           ))}
         </View>
 
-        {/* Section 2: Tiga Menu Utama */}
+        {/* Section 2: Menu Utama */}
         <View style={[styles.sectionHeader, { marginTop: 24 }]}>
           <View>
             <Text style={styles.sectionTitle}>Menu Utama</Text>
@@ -423,7 +234,7 @@ export default function App() {
         </View>
 
         <View style={styles.menuContainer}>
-          {mainMenus.map((menu) => (
+          {mainMenus.map((menu: any) => (
             <TouchableOpacity
               key={menu.id}
               style={styles.menuCard}
@@ -465,7 +276,7 @@ export default function App() {
           ))}
         </View>
 
-        {/* Banner Stok Opname / Audit */}
+        {/* Banner Stok Opname */}
         <View style={styles.auditBanner}>
           <View style={styles.auditTextCol}>
             <View style={styles.auditHeaderRow}>
@@ -488,7 +299,7 @@ export default function App() {
         </View>
       </ScrollView>
 
-      {/* Bottom Navigation Bar */}
+      {/* Bottom Nav */}
       <View style={styles.bottomNav}>
         <TouchableOpacity
           style={styles.navItem}
@@ -511,7 +322,10 @@ export default function App() {
 
         <TouchableOpacity
           style={styles.navItem}
-          onPress={() => setActiveTab("items")}
+          onPress={() => {
+            setActiveTab("items");
+            router.push("/explore");
+          }}
         >
           <Ionicons
             name={activeTab === "items" ? "cube" : "cube-outline"}
@@ -528,7 +342,6 @@ export default function App() {
           </Text>
         </TouchableOpacity>
 
-        {/* Center Floating Action Button (FAB) */}
         <TouchableOpacity
           style={styles.centerFab}
           activeOpacity={0.85}
@@ -539,7 +352,10 @@ export default function App() {
 
         <TouchableOpacity
           style={styles.navItem}
-          onPress={() => setActiveTab("history")}
+          onPress={() => {
+            setActiveTab("history");
+            Alert.alert("Navigasi", "Halaman Riwayat belum dibuat di src/app");
+          }}
         >
           <Ionicons
             name={activeTab === "history" ? "time" : "time-outline"}
@@ -558,7 +374,13 @@ export default function App() {
 
         <TouchableOpacity
           style={styles.navItem}
-          onPress={() => setActiveTab("settings")}
+          onPress={() => {
+            setActiveTab("settings");
+            Alert.alert(
+              "Navigasi",
+              "Halaman Pengaturan belum dibuat di src/app",
+            );
+          }}
         >
           <Ionicons
             name={activeTab === "settings" ? "settings" : "settings-outline"}
@@ -580,24 +402,29 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: "#3730A3",
+    justifyContent: "center",
+    alignItems: "center",
+  },
   safeArea: {
     flex: 1,
     backgroundColor: "#3730A3",
   },
-  // PERBAIKAN TAMPILAN KEBAWAH:
   headerBackground: {
     backgroundColor: "#3730A3",
     paddingHorizontal: 20,
-    paddingTop: StatusBar.currentHeight ? StatusBar.currentHeight : 10, // Dikurangi agar header lebih ke atas
-    paddingBottom: 16,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+    paddingTop: StatusBar.currentHeight ? StatusBar.currentHeight + 8 : 16,
+    paddingBottom: 22,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
   },
   topNavbar: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 16,
   },
   brandRow: {
     flexDirection: "row",
@@ -605,22 +432,21 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   headerLogoContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     backgroundColor: "#4F46E5",
     alignItems: "center",
     justifyContent: "center",
-    elevation: 4,
   },
   brandName: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: "800",
     color: "#FFFFFF",
     letterSpacing: 0.5,
   },
   brandTagline: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#C7D2FE",
     fontWeight: "500",
   },
@@ -630,9 +456,9 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   iconButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     backgroundColor: "rgba(255, 255, 255, 0.15)",
     justifyContent: "center",
     alignItems: "center",
@@ -640,8 +466,8 @@ const styles = StyleSheet.create({
   },
   notificationBadge: {
     position: "absolute",
-    top: 6,
-    right: 6,
+    top: 8,
+    right: 8,
     width: 8,
     height: 8,
     borderRadius: 4,
@@ -650,27 +476,27 @@ const styles = StyleSheet.create({
     borderColor: "#3730A3",
   },
   profileButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: "#EEF2FF",
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: "#FEE2E2",
     justifyContent: "center",
     alignItems: "center",
   },
   heroContent: {
-    marginTop: 2,
+    marginTop: 6,
   },
   heroGreeting: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: "700",
     color: "#FFFFFF",
-    marginBottom: 2,
+    marginBottom: 4,
   },
   heroDescription: {
-    fontSize: 12,
+    fontSize: 13,
     color: "#E0E7FF",
-    lineHeight: 17,
-    marginBottom: 12,
+    lineHeight: 19,
+    marginBottom: 16,
   },
   quickBar: {
     flexDirection: "row",
@@ -682,19 +508,19 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    gap: 8,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    gap: 10,
   },
   searchPlaceholder: {
-    fontSize: 12,
+    fontSize: 13,
     color: "#94A3B8",
   },
   scanButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     backgroundColor: "#4F46E5",
     justifyContent: "center",
     alignItems: "center",
@@ -705,27 +531,27 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingTop: 16,
+    paddingTop: 20,
     paddingBottom: 28,
   },
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-end",
-    marginBottom: 12,
+    marginBottom: 14,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: "700",
     color: "#0F172A",
   },
   sectionSubtitle: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748B",
     marginTop: 2,
   },
   linkText: {
-    fontSize: 12,
+    fontSize: 13,
     color: "#4F46E5",
     fontWeight: "600",
   },
@@ -737,44 +563,43 @@ const styles = StyleSheet.create({
   statCard: {
     flex: 1,
     backgroundColor: "#FFFFFF",
-    borderRadius: 14,
-    padding: 10,
+    borderRadius: 16,
+    padding: 12,
     borderWidth: 1,
     borderColor: "#F1F5F9",
-    elevation: 2,
   },
   statTopRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 8,
+    marginBottom: 10,
   },
   statIconWrapper: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
   },
   statUnit: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: "700",
-    paddingHorizontal: 5,
+    paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 4,
+    borderRadius: 6,
     overflow: "hidden",
   },
   statValue: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "800",
     color: "#0F172A",
   },
   statTitle: {
-    fontSize: 10,
+    fontSize: 11,
     color: "#475569",
     fontWeight: "600",
     marginTop: 2,
-    marginBottom: 6,
+    marginBottom: 8,
   },
   statTrendRow: {
     flexDirection: "row",
@@ -782,33 +607,32 @@ const styles = StyleSheet.create({
     gap: 4,
     borderTopWidth: 1,
     borderTopColor: "#F8FAFC",
-    paddingTop: 4,
+    paddingTop: 6,
   },
   statTrendText: {
-    fontSize: 9,
+    fontSize: 10,
     color: "#64748B",
     flex: 1,
   },
   menuContainer: {
-    gap: 10,
+    gap: 12,
   },
   menuCard: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 14,
+    borderRadius: 18,
+    padding: 16,
     borderWidth: 1,
     borderColor: "#E2E8F0",
-    elevation: 2,
   },
   menuIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
+    width: 56,
+    height: 56,
+    borderRadius: 16,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 12,
+    marginRight: 14,
   },
   menuContent: {
     flex: 1,
@@ -820,80 +644,80 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   menuTitle: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "700",
     color: "#0F172A",
   },
   tagBadge: {
-    paddingHorizontal: 6,
+    paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 6,
   },
   tagText: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: "700",
   },
   menuSubtitle: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
     color: "#64748B",
-    marginBottom: 2,
+    marginBottom: 4,
   },
   menuDescription: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#64748B",
-    lineHeight: 15,
+    lineHeight: 16,
   },
   menuChevron: {
-    marginLeft: 6,
+    marginLeft: 8,
   },
   auditBanner: {
-    marginTop: 18,
+    marginTop: 20,
     backgroundColor: "#ECFDF5",
     borderWidth: 1,
     borderColor: "#A7F3D0",
-    borderRadius: 14,
-    padding: 14,
+    borderRadius: 16,
+    padding: 16,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
   auditTextCol: {
     flex: 1,
-    paddingRight: 10,
+    paddingRight: 12,
   },
   auditHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    marginBottom: 2,
+    marginBottom: 4,
   },
   auditTag: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: "700",
     color: "#065F46",
     textTransform: "uppercase",
   },
   auditTitle: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "700",
     color: "#064E3B",
-    marginBottom: 2,
+    marginBottom: 4,
   },
   auditDesc: {
-    fontSize: 11,
+    fontSize: 12,
     color: "#047857",
-    lineHeight: 15,
+    lineHeight: 16,
   },
   auditButton: {
     backgroundColor: "#059669",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
   },
   auditButtonText: {
     color: "#FFFFFF",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
   },
   bottomNav: {
@@ -901,10 +725,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-around",
     backgroundColor: "#FFFFFF",
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderTopWidth: 1,
     borderTopColor: "#E2E8F0",
-    height: 60,
+    position: "relative",
+    height: 64,
   },
   navItem: {
     alignItems: "center",
@@ -912,9 +737,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   navLabel: {
-    fontSize: 10,
+    fontSize: 11,
     color: "#94A3B8",
-    marginTop: 2,
+    marginTop: 3,
     fontWeight: "500",
   },
   navLabelActive: {
@@ -922,91 +747,14 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   centerFab: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: "#4F46E5",
     justifyContent: "center",
     alignItems: "center",
-    marginTop: -24,
+    marginTop: -28,
     borderWidth: 3,
     borderColor: "#FFFFFF",
-    elevation: 6,
-  },
-
-  // STYLES HALAMAN AUTHENTICATION (REGISTER / LOGIN)
-  authContainer: {
-    flex: 1,
-    backgroundColor: "#F1F5F9",
-    justifyContent: "center",
-    paddingHorizontal: 24,
-  },
-  authCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    padding: 24,
-    elevation: 4,
-  },
-  authLogoWrapper: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
-    backgroundColor: "#EEF2FF",
-    alignSelf: "center",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  authTitle: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#0F172A",
-    textAlign: "center",
-    marginBottom: 4,
-  },
-  authSubtitle: {
-    fontSize: 12,
-    color: "#64748B",
-    textAlign: "center",
-    marginBottom: 20,
-  },
-  formGroup: {
-    marginBottom: 14,
-  },
-  label: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#334155",
-    marginBottom: 6,
-  },
-  input: {
-    backgroundColor: "#F8FAFC",
-    borderWidth: 1,
-    borderColor: "#CBD5E1",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 13,
-  },
-  primaryAuthButton: {
-    backgroundColor: "#4F46E5",
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: "center",
-    marginTop: 10,
-  },
-  primaryAuthButtonText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  switchAuthButton: {
-    marginTop: 16,
-    alignItems: "center",
-  },
-  switchAuthText: {
-    color: "#4F46E5",
-    fontSize: 12,
-    fontWeight: "600",
   },
 });
