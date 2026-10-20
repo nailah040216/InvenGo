@@ -1,11 +1,13 @@
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { CameraView, useCameraPermissions } from "expo-camera";
+import { useRouter } from "expo-router";
 import { StatusBar as ExpoStatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -42,10 +44,11 @@ export default function IndexScreen() {
   const insets = useSafeAreaInsets();
 
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
-  const [activeTab, setActiveTab] = useState("home");
+  const [activeTab, setActiveTab] = useState("home"); // Tab: 'home', 'items', 'history', 'settings', 'tracking'
   const [userEmail, setUserEmail] = useState("");
   const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
 
+  // State Pencarian, Data API & Loading
   const [searchQuery, setSearchQuery] = useState("");
   const [barangList, setBarangList] = useState<InventoryItem[]>([]);
   const [isLoadingApi, setIsLoadingApi] = useState<boolean>(true);
@@ -54,6 +57,18 @@ export default function IndexScreen() {
     borrowedItems: 86,
     damagedItems: 12,
   });
+
+  // State Modal Tambah Barang (+)
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [namaBarangInput, setNamaBarangInput] = useState("");
+  const [skuInput, setSkuInput] = useState("");
+  const [kategoriInput, setKategoriInput] = useState("");
+  const [stokInput, setStokInput] = useState("");
+
+  // State Modal Scanner QR
+  const [isScannerVisible, setIsScannerVisible] = useState(false);
+  const [scanned, setScanned] = useState(false);
+  const [permission, requestPermission] = useCameraPermissions();
 
   const API_URL = "https://api.presidentku.id/programs";
 
@@ -150,7 +165,6 @@ export default function IndexScreen() {
     await AsyncStorage.setItem(STORAGE_KEYS.THEME_MODE, newMode ? "dark" : "light");
   };
 
-  // Logout Universal (Dukungan Web & Mobile)
   const processLogout = async () => {
     try {
       await AsyncStorage.setItem(STORAGE_KEYS.IS_LOGGED_IN, "false");
@@ -164,35 +178,64 @@ export default function IndexScreen() {
   const handleLogout = () => {
     if (Platform.OS === "web") {
       const confirmLogout = window.confirm("Apakah Anda yakin ingin keluar dari InvenGo?");
-      if (confirmLogout) {
-        processLogout();
-      }
+      if (confirmLogout) processLogout();
     } else {
       Alert.alert("Konfirmasi Logout", "Apakah Anda yakin ingin keluar?", [
         { text: "Batal", style: "cancel" },
-        {
-          text: "Keluar",
-          style: "destructive",
-          onPress: processLogout,
-        },
+        { text: "Keluar", style: "destructive", onPress: processLogout },
       ]);
     }
   };
 
-  const handleMenuPress = (menuTitle: string) => {
-    if (Platform.OS === "web") {
-      alert("Membuka halaman: " + menuTitle);
-    } else {
-      Alert.alert("Navigasi Menu", "Membuka halaman " + menuTitle);
+  const handleOpenScanner = async () => {
+    if (!permission?.granted) {
+      const res = await requestPermission();
+      if (!res.granted) {
+        const msg = "Izin kamera diperlukan untuk menggunakan fitur Scanner QR.";
+        Platform.OS === "web" ? alert(msg) : Alert.alert("Izin Kamera Ditolak", msg);
+        return;
+      }
     }
+    setScanned(false);
+    setIsScannerVisible(true);
   };
 
-  const handleActionPress = (actionName: string) => {
-    if (Platform.OS === "web") {
-      alert("Menjalankan aksi: " + actionName);
-    } else {
-      Alert.alert("Aksi Cepat", "Menjalankan aksi: " + actionName);
+  const handleBarCodeScanned = ({ data }: { data: string }) => {
+    if (scanned) return;
+    setScanned(true);
+    setIsScannerVisible(false);
+
+    setSearchQuery(data);
+
+    const msg = `Hasil Scan QR: "${data}".\nMenampilkan barang terkait di kolom pencarian.`;
+    Platform.OS === "web" ? alert(msg) : Alert.alert("QR Berhasil Pemindaian", msg);
+  };
+
+  const handleSimpanBarang = () => {
+    if (!namaBarangInput.trim() || !skuInput.trim() || !stokInput.trim()) {
+      const msg = "Harap isi Nama Barang, SKU, dan Stok!";
+      Platform.OS === "web" ? alert(msg) : Alert.alert("Peringatan", msg);
+      return;
     }
+
+    const newItem: InventoryItem = {
+      id: String(Date.now()),
+      sku: skuInput.toUpperCase(),
+      nama: namaBarangInput,
+      kategori: kategoriInput || "Umum",
+      stok: parseInt(stokInput, 10) || 0,
+    };
+
+    setBarangList([newItem, ...barangList]);
+    setIsModalVisible(false);
+
+    setNamaBarangInput("");
+    setSkuInput("");
+    setKategoriInput("");
+    setStokInput("");
+
+    const successMsg = "Barang berhasil ditambahkan!";
+    Platform.OS === "web" ? alert(successMsg) : Alert.alert("Sukses", successMsg);
   };
 
   const filteredBarang = barangList.filter(
@@ -265,6 +308,7 @@ export default function IndexScreen() {
       tag: "Katalog",
       accentColor: "#4F46E5",
       badgeBg: isDarkMode ? "#312E81" : "#EEF2FF",
+      tabKey: "items",
     },
     {
       id: "transaksi-peminjaman",
@@ -275,6 +319,7 @@ export default function IndexScreen() {
       tag: "Sirkulasi",
       accentColor: "#0EA5E9",
       badgeBg: isDarkMode ? "#075985" : "#E0F2FE",
+      tabKey: "history",
     },
     {
       id: "pelacakan-laporan",
@@ -285,6 +330,7 @@ export default function IndexScreen() {
       tag: "Analitik",
       accentColor: "#10B981",
       badgeBg: isDarkMode ? "#065F46" : "#D1FAE5",
+      tabKey: "tracking",
     },
   ];
 
@@ -292,6 +338,7 @@ export default function IndexScreen() {
     <View style={[styles.safeArea, { backgroundColor: theme.headerBg }]}>
       <ExpoStatusBar style="light" />
 
+      {/* Header Utama */}
       <View style={[styles.headerBackground, { backgroundColor: theme.headerBg, paddingTop: Math.max(insets.top, 10) }]}>
         <View style={styles.topNavbar}>
           <View style={styles.brandRow}>
@@ -337,14 +384,17 @@ export default function IndexScreen() {
                 </TouchableOpacity>
               )}
             </View>
-            <TouchableOpacity style={styles.scanButton} onPress={() => handleActionPress("Scan QR")} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.scanButton} onPress={handleOpenScanner} activeOpacity={0.7}>
               <Ionicons name="qr-code-outline" size={20} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
         </View>
       </View>
 
+      {/* Konten Utama Berdasarkan Tab */}
       <ScrollView style={[styles.scrollContainer, { backgroundColor: theme.bg }]} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        
+        {/* Tampilan Hasil Pencarian */}
         {searchQuery.length > 0 ? (
           <View style={{ marginBottom: 20 }}>
             <Text style={[styles.sectionTitle, { color: theme.textPrimary, marginBottom: 12 }]}>
@@ -371,61 +421,260 @@ export default function IndexScreen() {
           </View>
         ) : null}
 
-        <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Ringkasan Inventaris</Text>
-          <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>Data Ringkasan System InvenGo</Text>
-        </View>
-
-        <View style={styles.statsGrid}>
-          {stats.map((item) => (
-            <View key={item.id} style={[styles.statCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-              <View style={styles.statTopRow}>
-                <View style={[styles.statIconWrapper, { backgroundColor: item.bgColor }]}>
-                  <Ionicons name={item.icon as any} size={22} color={item.color} />
-                </View>
-                <Text style={[styles.statUnit, { color: item.color, backgroundColor: item.bgColor }]}>{item.unit}</Text>
-              </View>
-              <Text style={[styles.statValue, { color: theme.textPrimary }]}>{item.value}</Text>
-              <Text style={[styles.statTitle, { color: theme.textSecondary }]}>{item.title}</Text>
-              <View style={[styles.statTrendRow, { borderTopColor: theme.borderColor }]}>
-                <Feather name="info" size={11} color={theme.textSecondary} />
-                <Text style={[styles.statTrendText, { color: theme.textSecondary }]} numberOfLines={1}>{item.trend}</Text>
-              </View>
+        {/* TAB 1: BERANDA */}
+        {activeTab === "home" && searchQuery.length === 0 && (
+          <View>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Ringkasan Inventaris</Text>
+              <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>Data Ringkasan System InvenGo</Text>
             </View>
-          ))}
-        </View>
 
-        <View style={[styles.sectionHeader, { marginTop: 24 }]}>
-          <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Menu Utama</Text>
-          <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>Navigasi fungsional InvenGo</Text>
-        </View>
-
-        <View style={styles.menuContainer}>
-          {mainMenus.map((menu) => (
-            <TouchableOpacity key={menu.id} style={[styles.menuCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]} onPress={() => handleMenuPress(menu.title)} activeOpacity={0.7}>
-              <View style={[styles.menuIconContainer, { backgroundColor: menu.badgeBg }]}>
-                <Ionicons name={menu.iconName as any} size={28} color={menu.accentColor} />
-              </View>
-
-              <View style={styles.menuContent}>
-                <View style={styles.menuTitleRow}>
-                  <Text style={[styles.menuTitle, { color: theme.textPrimary }]}>{menu.title}</Text>
-                  <View style={[styles.tagBadge, { backgroundColor: menu.badgeBg }]}>
-                    <Text style={[styles.tagText, { color: menu.accentColor }]}>{menu.tag}</Text>
+            <View style={styles.statsGrid}>
+              {stats.map((item) => (
+                <View key={item.id} style={[styles.statCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                  <View style={styles.statTopRow}>
+                    <View style={[styles.statIconWrapper, { backgroundColor: item.bgColor }]}>
+                      <Ionicons name={item.icon as any} size={22} color={item.color} />
+                    </View>
+                    <Text style={[styles.statUnit, { color: item.color, backgroundColor: item.bgColor }]}>{item.unit}</Text>
+                  </View>
+                  <Text style={[styles.statValue, { color: theme.textPrimary }]}>{item.value}</Text>
+                  <Text style={[styles.statTitle, { color: theme.textSecondary }]}>{item.title}</Text>
+                  <View style={[styles.statTrendRow, { borderTopColor: theme.borderColor }]}>
+                    <Feather name="info" size={11} color={theme.textSecondary} />
+                    <Text style={[styles.statTrendText, { color: theme.textSecondary }]} numberOfLines={1}>{item.trend}</Text>
                   </View>
                 </View>
-                <Text style={[styles.menuSubtitle, { color: theme.textSecondary }]}>{menu.subtitle}</Text>
-                <Text style={[styles.menuDescription, { color: theme.textSecondary }]}>{menu.description}</Text>
-              </View>
+              ))}
+            </View>
 
-              <View style={styles.menuChevron}>
-                <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
+            <View style={[styles.sectionHeader, { marginTop: 24 }]}>
+              <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Menu Utama</Text>
+              <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>Navigasi fungsional InvenGo</Text>
+            </View>
+
+            <View style={styles.menuContainer}>
+              {mainMenus.map((menu) => (
+                <TouchableOpacity key={menu.id} style={[styles.menuCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]} onPress={() => setActiveTab(menu.tabKey)} activeOpacity={0.7}>
+                  <View style={[styles.menuIconContainer, { backgroundColor: menu.badgeBg }]}>
+                    <Ionicons name={menu.iconName as any} size={28} color={menu.accentColor} />
+                  </View>
+
+                  <View style={styles.menuContent}>
+                    <View style={styles.menuTitleRow}>
+                      <Text style={[styles.menuTitle, { color: theme.textPrimary }]}>{menu.title}</Text>
+                      <View style={[styles.tagBadge, { backgroundColor: menu.badgeBg }]}>
+                        <Text style={[styles.tagText, { color: menu.accentColor }]}>{menu.tag}</Text>
+                      </View>
+                    </View>
+                    <Text style={[styles.menuSubtitle, { color: theme.textSecondary }]}>{menu.subtitle}</Text>
+                    <Text style={[styles.menuDescription, { color: theme.textSecondary }]}>{menu.description}</Text>
+                  </View>
+
+                  <View style={styles.menuChevron}>
+                    <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* TAB 2: BARANG */}
+        {activeTab === "items" && searchQuery.length === 0 && (
+          <View>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Katalog Data Barang</Text>
+              <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>Total {barangList.length} Barang Terdaftar</Text>
+            </View>
+
+            {barangList.map((item) => (
+              <View key={item.id} style={[styles.searchCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, marginBottom: 10 }]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.searchCardTitle, { color: theme.textPrimary }]}>{item.nama}</Text>
+                  <Text style={{ color: theme.textSecondary, fontSize: 12 }}>
+                    SKU: {item.sku} | Kategori: {item.kategori}
+                  </Text>
+                </View>
+                <View style={{ alignItems: "flex-end" }}>
+                  <Text style={{ color: "#4F46E5", fontWeight: "bold" }}>Stok: {item.stok}</Text>
+                </View>
               </View>
+            ))}
+          </View>
+        )}
+
+        {/* TAB 3: RIWAYAT */}
+        {activeTab === "history" && searchQuery.length === 0 && (
+          <View>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Riwayat Aktivitas & Peminjaman</Text>
+              <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>Log peminjaman dan mutasi aset</Text>
+            </View>
+
+            {[
+              { id: "h1", user: "Rian", item: "Laptop Asus ROG", date: "Hari ini, 10:30", status: "Dipinjam", color: "#F59E0B" },
+              { id: "h2", user: "Siti", item: "Proyektor Epson", date: "Kemarin, 14:15", status: "Dikembalikan", color: "#10B981" },
+              { id: "h3", user: "Budi", item: "Kabel HDMI 10m", date: "20 Okt 2026", status: "Dikembalikan", color: "#10B981" },
+            ].map((log) => (
+              <View key={log.id} style={[styles.searchCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, marginBottom: 10 }]}>
+                <Ionicons name="time-outline" size={24} color={theme.textSecondary} style={{ marginRight: 12 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.searchCardTitle, { color: theme.textPrimary }]}>{log.item}</Text>
+                  <Text style={{ color: theme.textSecondary, fontSize: 12 }}>Peminjam: {log.user} ({log.date})</Text>
+                </View>
+                <Text style={{ color: log.color, fontWeight: "bold", fontSize: 12 }}>{log.status}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* TAB 4: PENGATURAN */}
+        {activeTab === "settings" && searchQuery.length === 0 && (
+          <View>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Pengaturan Sistem</Text>
+              <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>Kelola akun dan preferensi aplikasi</Text>
+            </View>
+
+            <TouchableOpacity style={[styles.searchCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, marginBottom: 10 }]} onPress={toggleTheme}>
+              <Ionicons name={isDarkMode ? "sunny-outline" : "moon-outline"} size={22} color={theme.textPrimary} style={{ marginRight: 12 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.searchCardTitle, { color: theme.textPrimary }]}>Mode Tampilan</Text>
+                <Text style={{ color: theme.textSecondary, fontSize: 12 }}>{isDarkMode ? "Gelap (Dark)" : "Terang (Light)"}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={theme.textSecondary} />
             </TouchableOpacity>
-          ))}
-        </View>
+
+            <TouchableOpacity style={[styles.searchCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, marginBottom: 10 }]} onPress={handleLogout}>
+              <Feather name="log-out" size={20} color="#EF4444" style={{ marginRight: 12 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.searchCardTitle, { color: "#EF4444" }]}>Keluar dari Akun</Text>
+                <Text style={{ color: theme.textSecondary, fontSize: 12 }}>{userEmail}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={theme.textSecondary} />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* TAB 5: PELACAKAN & LAPORAN */}
+        {activeTab === "tracking" && searchQuery.length === 0 && (
+          <View>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Pelacakan Posisi & Audit Aset</Text>
+              <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>Monitoring posisi fisik barang secara real-time</Text>
+            </View>
+
+            {[
+              { id: "t1", sku: "SKU-1001", nama: "Laptop Asus ROG", lokasi: "Ruang IT - Lantai 2", penanggungJawab: "Ahmad", status: "Terverifikasi" },
+              { id: "t2", sku: "SKU-1002", nama: "Proyektor Epson", lokasi: "Ruang Rapat Utama", penanggungJawab: "Budi", status: "Perlu Audit" },
+              { id: "t3", sku: "SKU-1003", nama: "Kabel HDMI 10m", lokasi: "Gudang A - Rak 3", penanggungJawab: "Siti", status: "Terverifikasi" },
+            ].map((track) => (
+              <View key={track.id} style={[styles.searchCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, marginBottom: 12 }]}>
+                <Ionicons name="location-outline" size={24} color="#10B981" style={{ marginRight: 12 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.searchCardTitle, { color: theme.textPrimary }]}>{track.nama}</Text>
+                  <Text style={{ color: theme.textSecondary, fontSize: 12 }}>
+                    {track.sku} | 📍 {track.lokasi}
+                  </Text>
+                  <Text style={{ color: theme.textSecondary, fontSize: 11, marginTop: 2 }}>
+                    PJ: {track.penanggungJawab}
+                  </Text>
+                </View>
+                <TouchableOpacity 
+                  style={{ backgroundColor: track.status === "Terverifikasi" ? "#D1FAE5" : "#FEF3C7", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 }}
+                  onPress={() => {
+                    const msg = `Laporan Aset: ${track.nama}\nLokasi: ${track.lokasi}\nStatus: ${track.status}`;
+                    Platform.OS === "web" ? alert(msg) : Alert.alert("Detail Pelacakan", msg);
+                  }}
+                >
+                  <Text style={{ color: track.status === "Terverifikasi" ? "#047857" : "#B45309", fontSize: 11, fontWeight: "bold" }}>
+                    {track.status}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        )}
       </ScrollView>
 
+      {/* Modal Scanner QR Kamera */}
+      <Modal visible={isScannerVisible} animationType="slide">
+        <View style={styles.scannerContainer}>
+          <CameraView
+            style={StyleSheet.absoluteFill}
+            facing="back"
+            onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
+          />
+          <View style={styles.scannerOverlay}>
+            <View style={styles.scanFrame} />
+            <Text style={styles.scanInstructions}>Arahkan kamera ke Kode QR atau Barcode Barang</Text>
+
+            <TouchableOpacity style={styles.closeScannerBtn} onPress={() => setIsScannerVisible(false)}>
+              <Text style={styles.closeScannerText}>Tutup Scanner</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal Tambah Barang (+) */}
+      <Modal visible={isModalVisible} animationType="slide" transparent={true}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: theme.cardBg }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Tambah Barang Baru</Text>
+              <TouchableOpacity onPress={() => setIsModalVisible(false)}>
+                <Ionicons name="close" size={24} color={theme.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <TextInput
+              style={[styles.modalInput, { color: theme.textPrimary, borderColor: theme.borderColor }]}
+              placeholder="Nama Barang"
+              placeholderTextColor={theme.textSecondary}
+              value={namaBarangInput}
+              onChangeText={setNamaBarangInput}
+            />
+
+            <TextInput
+              style={[styles.modalInput, { color: theme.textPrimary, borderColor: theme.borderColor }]}
+              placeholder="Kode SKU (contoh: SKU-2001)"
+              placeholderTextColor={theme.textSecondary}
+              value={skuInput}
+              onChangeText={setSkuInput}
+            />
+
+            <TextInput
+              style={[styles.modalInput, { color: theme.textPrimary, borderColor: theme.borderColor }]}
+              placeholder="Kategori"
+              placeholderTextColor={theme.textSecondary}
+              value={kategoriInput}
+              onChangeText={setKategoriInput}
+            />
+
+            <TextInput
+              style={[styles.modalInput, { color: theme.textPrimary, borderColor: theme.borderColor }]}
+              placeholder="Jumlah Stok"
+              placeholderTextColor={theme.textSecondary}
+              keyboardType="numeric"
+              value={stokInput}
+              onChangeText={setStokInput}
+            />
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setIsModalVisible(false)}>
+                <Text style={{ color: theme.textSecondary }}>Batal</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.saveBtn} onPress={handleSimpanBarang}>
+                <Text style={{ color: "#FFFFFF", fontWeight: "bold" }}>Simpan</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Bottom Navigation */}
       <View style={[styles.bottomNav, { backgroundColor: theme.navBg, borderTopColor: theme.borderColor, paddingBottom: Math.max(insets.bottom, 8) }]}>
         <TouchableOpacity style={styles.navItem} onPress={() => setActiveTab("home")} activeOpacity={0.7}>
           <Ionicons name={activeTab === "home" ? "home" : "home-outline"} size={22} color={activeTab === "home" ? "#4F46E5" : theme.textSecondary} />
@@ -437,7 +686,7 @@ export default function IndexScreen() {
           <Text style={[styles.navLabel, { color: activeTab === "items" ? "#4F46E5" : theme.textSecondary }]}>Barang</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.centerFab} onPress={() => handleActionPress("Tambah Barang")} activeOpacity={0.7}>
+        <TouchableOpacity style={styles.centerFab} onPress={() => setIsModalVisible(true)} activeOpacity={0.7}>
           <Ionicons name="add" size={28} color="#FFFFFF" />
         </TouchableOpacity>
 
@@ -506,4 +755,18 @@ const styles = StyleSheet.create({
   navItem: { alignItems: "center", justifyContent: "center", flex: 1, cursor: "pointer" as any },
   navLabel: { fontSize: 10, marginTop: 2, fontWeight: "500" },
   centerFab: { width: 48, height: 48, borderRadius: 24, backgroundColor: "#4F46E5", justifyContent: "center", alignItems: "center", marginTop: -24, borderWidth: 3, borderColor: "#FFFFFF", cursor: "pointer" as any },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: 20 },
+  modalContent: { width: "100%", maxWidth: 400, borderRadius: 16, padding: 20 },
+  modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
+  modalTitle: { fontSize: 18, fontWeight: "700" },
+  modalInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, marginBottom: 12 },
+  modalActions: { flexDirection: "row", justifyContent: "flex-end", gap: 10, marginTop: 10 },
+  cancelBtn: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8 },
+  saveBtn: { backgroundColor: "#4F46E5", paddingVertical: 10, paddingHorizontal: 20, borderRadius: 8 },
+  scannerContainer: { flex: 1, backgroundColor: "#000000" },
+  scannerOverlay: { flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 20 },
+  scanFrame: { width: 240, height: 240, borderWidth: 2, borderColor: "#4F46E5", borderRadius: 16, backgroundColor: "transparent" },
+  scanInstructions: { color: "#FFFFFF", fontSize: 13, marginTop: 20, textAlign: "center" },
+  closeScannerBtn: { marginTop: 30, backgroundColor: "#EF4444", paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 },
+  closeScannerText: { color: "#FFFFFF", fontWeight: "bold" },
 });
