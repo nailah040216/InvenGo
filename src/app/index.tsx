@@ -44,14 +44,15 @@ export default function IndexScreen() {
   const insets = useSafeAreaInsets();
 
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
-  const [activeTab, setActiveTab] = useState("home"); // Tab: 'home', 'items', 'history', 'settings', 'tracking'
+  const [activeTab, setActiveTab] = useState("home");
   const [userEmail, setUserEmail] = useState("");
   const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
 
-  // State Pencarian, Data API & Loading
+  // State Pencarian, Data API, Loading & Error Handling
   const [searchQuery, setSearchQuery] = useState("");
   const [barangList, setBarangList] = useState<InventoryItem[]>([]);
   const [isLoadingApi, setIsLoadingApi] = useState<boolean>(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [statsData, setStatsData] = useState<DashboardStats>({
     totalItems: 0,
     borrowedItems: 86,
@@ -103,9 +104,12 @@ export default function IndexScreen() {
     };
   }, []);
 
+  // Fetch Data API dengan Error Handling (Task 01, Task 02, Task 03)
   const fetchApiData = async () => {
     try {
       setIsLoadingApi(true);
+      setErrorMessage(null);
+
       const token = await AsyncStorage.getItem(STORAGE_KEYS.USER_TOKEN);
 
       const response = await fetch(API_URL, {
@@ -132,10 +136,19 @@ export default function IndexScreen() {
           borrowedItems: 86,
           damagedItems: 12,
         });
+      } else if (response.status >= 400 && response.status < 500) {
+        throw new Error(`Data tidak ditemukan (Error ${response.status}). Program yang Anda cari tidak tersedia.`);
+      } else if (response.status >= 500) {
+        throw new Error(`Terjadi kesalahan pada server (Error ${response.status}). Silakan coba lagi nanti.`);
       } else {
-        useMockFallback();
+        throw new Error(`Gagal memuat data (HTTP ${response.status}).`);
       }
-    } catch (error) {
+    } catch (error: any) {
+      if (error.message.includes("Network request failed") || !navigator.onLine) {
+        setErrorMessage("Tidak ada koneksi internet. Periksa koneksi Anda dan coba lagi.");
+      } else {
+        setErrorMessage(error.message || "Gagal mengambil data dari server.");
+      }
       useMockFallback();
     } finally {
       setIsLoadingApi(false);
@@ -169,7 +182,7 @@ export default function IndexScreen() {
     try {
       await AsyncStorage.setItem(STORAGE_KEYS.IS_LOGGED_IN, "false");
       setIsLoggedIn(false);
-      router.replace("/login");
+      router.push("/login");
     } catch (error) {
       console.error("Gagal Logout", error);
     }
@@ -217,6 +230,14 @@ export default function IndexScreen() {
       Platform.OS === "web" ? alert(msg) : Alert.alert("Peringatan", msg);
       return;
     }
+
+    const handleKembaliNavigasi = () => {
+      if (router.canGoBack()) {
+        router.back(); // <-- Menerapkan router.back()
+      } else {
+         router.push("/login");
+      }
+    };
 
     const newItem: InventoryItem = {
       id: String(Date.now()),
@@ -391,9 +412,19 @@ export default function IndexScreen() {
         </View>
       </View>
 
-      {/* Konten Utama Berdasarkan Tab */}
+      {/* Konten Utama */}
       <ScrollView style={[styles.scrollContainer, { backgroundColor: theme.bg }]} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         
+        {/* Banner Loading Kecil saat refetch data */}
+        {isLoadingApi && (
+          <View style={[styles.statusBanner, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+            <ActivityIndicator size="small" color="#4F46E5" />
+            <Text style={{ color: theme.textPrimary, marginLeft: 10, fontSize: 13 }}>
+              Memuat data... Mohon tunggu sebentar.
+            </Text>
+          </View>
+        )}
+
         {/* Tampilan Hasil Pencarian */}
         {searchQuery.length > 0 ? (
           <View style={{ marginBottom: 20 }}>
@@ -562,33 +593,33 @@ export default function IndexScreen() {
           <View>
             <View style={styles.sectionHeader}>
               <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Pelacakan Posisi & Audit Aset</Text>
-              <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>Monitoring posisi fisik barang secara real-time</Text>
+              <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>Monitoring posisi fisik barang yang dipinjam & tersimpan</Text>
             </View>
 
             {[
-              { id: "t1", sku: "SKU-1001", nama: "Laptop Asus ROG", lokasi: "Ruang IT - Lantai 2", penanggungJawab: "Ahmad", status: "Terverifikasi" },
-              { id: "t2", sku: "SKU-1002", nama: "Proyektor Epson", lokasi: "Ruang Rapat Utama", penanggungJawab: "Budi", status: "Perlu Audit" },
-              { id: "t3", sku: "SKU-1003", nama: "Kabel HDMI 10m", lokasi: "Gudang A - Rak 3", penanggungJawab: "Siti", status: "Terverifikasi" },
+              { id: "t1", sku: "SKU-1001", nama: "Laptop Asus ROG", lokasi: "Lab Komputer 3", peminjam: "Ahmad (Mahasiswa)", status: "Dipinjam" },
+              { id: "t2", sku: "SKU-1002", nama: "Proyektor Epson", lokasi: "Ruang Rapat Utama", peminjam: "Budi (Dosen)", status: "Dipinjam" },
+              { id: "t3", sku: "SKU-1003", nama: "Kabel HDMI 10m", lokasi: "Gudang Utama - Rak A2", peminjam: "-", status: "Tersedia" },
             ].map((track) => (
               <View key={track.id} style={[styles.searchCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, marginBottom: 12 }]}>
-                <Ionicons name="location-outline" size={24} color="#10B981" style={{ marginRight: 12 }} />
+                <Ionicons name="location-outline" size={24} color={track.status === "Dipinjam" ? "#F59E0B" : "#10B981"} style={{ marginRight: 12 }} />
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.searchCardTitle, { color: theme.textPrimary }]}>{track.nama}</Text>
                   <Text style={{ color: theme.textSecondary, fontSize: 12 }}>
-                    {track.sku} | 📍 {track.lokasi}
+                    {track.sku} | 📍 Lokasi: <Text style={{ fontWeight: "bold", color: theme.textPrimary }}>{track.lokasi}</Text>
                   </Text>
                   <Text style={{ color: theme.textSecondary, fontSize: 11, marginTop: 2 }}>
-                    PJ: {track.penanggungJawab}
+                    Peminjam / PJ: {track.peminjam}
                   </Text>
                 </View>
                 <TouchableOpacity 
-                  style={{ backgroundColor: track.status === "Terverifikasi" ? "#D1FAE5" : "#FEF3C7", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 }}
+                  style={{ backgroundColor: track.status === "Dipinjam" ? "#FEF3C7" : "#D1FAE5", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 }}
                   onPress={() => {
-                    const msg = `Laporan Aset: ${track.nama}\nLokasi: ${track.lokasi}\nStatus: ${track.status}`;
+                    const msg = `Laporan Lokasi Barang:\nNama: ${track.nama}\nLokasi Saat Ini: ${track.lokasi}\nPeminjam: ${track.peminjam}\nStatus: ${track.status}`;
                     Platform.OS === "web" ? alert(msg) : Alert.alert("Detail Pelacakan", msg);
                   }}
                 >
-                  <Text style={{ color: track.status === "Terverifikasi" ? "#047857" : "#B45309", fontSize: 11, fontWeight: "bold" }}>
+                  <Text style={{ color: track.status === "Dipinjam" ? "#B45309" : "#047857", fontSize: 11, fontWeight: "bold" }}>
                     {track.status}
                   </Text>
                 </TouchableOpacity>
@@ -597,6 +628,45 @@ export default function IndexScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* POP-UP ERROR / OFFLINE MODEL DI TENGAH DENGAN BACKGROUND BLUR */}
+      <Modal visible={!!errorMessage && !isLoadingApi} transparent={true} animationType="fade">
+        <View style={styles.blurOverlay}>
+          <View style={[styles.centeredErrorCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+            <View style={styles.errorIconCircle}>
+              <Ionicons name="alert-circle-outline" size={44} color="#EF4444" />
+            </View>
+
+            <Text style={[styles.centeredErrorTitle, { color: theme.textPrimary }]}>
+              Gagal Mengambil Data
+            </Text>
+
+            <Text style={[styles.centeredErrorText, { color: theme.textSecondary }]}>
+              {errorMessage}
+            </Text>
+
+            <View style={styles.modalErrorActions}>
+              <TouchableOpacity
+                style={styles.closeErrorBtn}
+                onPress={() => setErrorMessage(null)}
+              >
+                <Text style={{ color: theme.textSecondary, fontWeight: "600", fontSize: 13 }}>
+                  Tutup
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.centeredRetryBtn}
+                onPress={fetchApiData}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="refresh-outline" size={16} color="#FFFFFF" />
+                <Text style={styles.centeredRetryText}>Coba Lagi</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Modal Scanner QR Kamera */}
       <Modal visible={isScannerVisible} animationType="slide">
@@ -769,4 +839,84 @@ const styles = StyleSheet.create({
   scanInstructions: { color: "#FFFFFF", fontSize: 13, marginTop: 20, textAlign: "center" },
   closeScannerBtn: { marginTop: 30, backgroundColor: "#EF4444", paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 },
   closeScannerText: { color: "#FFFFFF", fontWeight: "bold" },
+  statusBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 16,
+  },
+  
+  // Style khusus Overlay Blur & Pop-up Error di tengah layar
+  blurOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.65)", // Gelap tembus pandang (efek blur)
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  centeredErrorCard: {
+    width: "100%",
+    maxWidth: 340,
+    borderRadius: 20,
+    padding: 24,
+    alignItems: "center",
+    borderWidth: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  errorIconCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: "#FEE2E2",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  centeredErrorTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  centeredErrorText: {
+    fontSize: 13,
+    textAlign: "center",
+    lineHeight: 18,
+    marginBottom: 20,
+  },
+  modalErrorActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    width: "100%",
+  },
+  closeErrorBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 12,
+    backgroundColor: "rgba(148, 163, 184, 0.15)",
+  },
+  centeredRetryBtn: {
+    flex: 1.2,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#EF4444",
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 6,
+  },
+  centeredRetryText: {
+    color: "#FFFFFF",
+    fontWeight: "bold",
+    fontSize: 13,
+  },
 });
