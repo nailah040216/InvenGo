@@ -1,6 +1,7 @@
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useRouter } from "expo-router";
+import { CameraView, useCameraPermissions } from "expo-camera";
+import { Redirect, useRouter } from "expo-router";
 import { StatusBar as ExpoStatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
 import {
@@ -13,8 +14,9 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { removeLocalStorage } from "../utils/storage";
 
 const STORAGE_KEYS = {
@@ -33,21 +35,74 @@ interface InventoryItem {
   foto?: string | null;
 }
 
-interface DashboardStats {
-  totalItems: number;
-  borrowedItems: number;
-  damagedItems: number;
-}
-
 export default function IndexScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const [permission, requestPermission] = useCameraPermissions();
 
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
   const [activeTab, setActiveTab] = useState("home");
   const [userEmail, setUserEmail] = useState("");
+  const [isDarkMode, setIsDarkMode] = useState(false);
 
-  // Pengecekan Status Login dari Local Storage saat komponen dimuat
+  // State untuk pencarian, scanner, modal & data
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isLoadingApi, setIsLoadingApi] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isScannerVisible, setIsScannerVisible] = useState(false);
+  const [scanned, setScanned] = useState(false);
+  const [isModalVisible, setIsModalVisible] = useState(false);
+
+  // Sample data barang
+  const [barangList, setBarangList] = useState<InventoryItem[]>([
+    {
+      id: "1",
+      sku: "SKU-1001",
+      nama: "Laptop Asus ROG",
+      kategori: "Elektronik",
+      stok: 8,
+      foto: null,
+    },
+    {
+      id: "2",
+      sku: "SKU-1002",
+      nama: "Proyektor Epson",
+      kategori: "Elektronik",
+      stok: 3,
+      foto: null,
+    },
+    {
+      id: "3",
+      sku: "SKU-1003",
+      nama: "Kabel HDMI 10m",
+      kategori: "Aksesoris",
+      stok: 15,
+      foto: null,
+    },
+  ]);
+
+  // Tema warna
+  const theme = {
+    bg: isDarkMode ? "#0F172A" : "#F8FAFC",
+    cardBg: isDarkMode ? "#1E293B" : "#FFFFFF",
+    headerBg: isDarkMode ? "#1E1B4B" : "#4F46E5",
+    textPrimary: isDarkMode ? "#F8FAFC" : "#0F172A",
+    textSecondary: isDarkMode ? "#94A3B8" : "#64748B",
+    borderColor: isDarkMode ? "#334155" : "#E2E8F0",
+    inputBg: isDarkMode ? "#334155" : "#EEF2FF",
+  };
+
+  // Toggle Dark/Light Mode
+  const toggleTheme = async () => {
+    const newMode = !isDarkMode;
+    setIsDarkMode(newMode);
+    await AsyncStorage.setItem(
+      STORAGE_KEYS.THEME_MODE,
+      newMode ? "dark" : "light",
+    );
+  };
+
+  // Pengecekan Status Login dari Local Storage
   useEffect(() => {
     let isMounted = true;
     const checkAuthAndTheme = async () => {
@@ -79,7 +134,15 @@ export default function IndexScreen() {
     };
   }, []);
 
-  // Fitur Logout
+  // Handler Aksi
+  const fetchApiData = () => {
+    setIsLoadingApi(true);
+    setErrorMessage(null);
+    setTimeout(() => {
+      setIsLoadingApi(false);
+    }, 1200);
+  };
+
   const handleLogout = () => {
     Alert.alert("Konfirmasi Logout", "Apakah Anda yakin ingin keluar?", [
       { text: "Batal", style: "cancel" },
@@ -93,6 +156,36 @@ export default function IndexScreen() {
       },
     ]);
   };
+
+  const handleHeaderCamera = async () => {
+    if (!permission?.granted) {
+      const res = await requestPermission();
+      if (!res.granted) {
+        Alert.alert("Izin Ditolak", "Izin kamera diperlukan untuk fitur ini.");
+        return;
+      }
+    }
+    setIsScannerVisible(true);
+  };
+
+  const handleOpenScanner = async () => {
+    setScanned(false);
+    await handleHeaderCamera();
+  };
+
+  const handleBarCodeScanned = ({ data }: { data: string }) => {
+    setScanned(true);
+    setIsScannerVisible(false);
+    Alert.alert("QR Code Terdeteksi", `Hasil Scan: ${data}`);
+  };
+
+  // Filter pencarian
+  const filteredBarang = barangList.filter(
+    (item) =>
+      item.nama.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.kategori.toLowerCase().includes(searchQuery.toLowerCase()),
+  );
 
   // 1. Tampilan Loading saat membaca Local Storage
   if (isLoggedIn === null) {
@@ -147,10 +240,23 @@ export default function IndexScreen() {
     },
   ];
 
-  // 3 Menu Utama Aplikasi
+  // Menu Utama Aplikasi (Termasuk Fitur Penugasan Todo List Async)
   const mainMenus = [
     {
+      id: "todo-list-async",
+      route: "/todo",
+      title: "Todo List Async (Tugas)",
+      subtitle: "6 Fitur Wajib Week 9",
+      description:
+        "Tampilkan data API (GET), loading, tambah todo (POST), ubah status (PATCH), error handling & pull-to-refresh.",
+      iconName: "checkbox-outline",
+      tag: "Penugasan",
+      accentColor: "#8B5CF6",
+      badgeBg: "#F3E8FF",
+    },
+    {
       id: "daftar-barang",
+      tabKey: "items",
       title: "Daftar Barang",
       subtitle: "Katalog & Stok Fisik",
       description:
@@ -162,6 +268,7 @@ export default function IndexScreen() {
     },
     {
       id: "transaksi-peminjaman",
+      tabKey: "history",
       title: "Transaksi Peminjaman",
       subtitle: "Sirkulasi & Peminjaman",
       description:
@@ -173,6 +280,7 @@ export default function IndexScreen() {
     },
     {
       id: "pelacakan-laporan",
+      tabKey: "tracking",
       title: "Pelacakan & Laporan",
       subtitle: "Audit & Analitik",
       description:
@@ -183,14 +291,6 @@ export default function IndexScreen() {
       badgeBg: "#D1FAE5",
     },
   ];
-
-  const handleMenuPress = (menuTitle: string) => {
-    Alert.alert("Navigasi Menu", "Membuka halaman " + menuTitle);
-  };
-
-  const handleActionPress = (actionName: string) => {
-    Alert.alert("Aksi Cepat", "Menjalankan aksi: " + actionName);
-  };
 
   return (
     <View style={[styles.safeArea, { backgroundColor: theme.headerBg }]}>
@@ -224,7 +324,6 @@ export default function IndexScreen() {
           </View>
 
           <View style={styles.topActions}>
-            {/* TOMBOL KAMERA HEADER */}
             <TouchableOpacity
               style={styles.iconButton}
               onPress={handleHeaderCamera}
@@ -245,7 +344,6 @@ export default function IndexScreen() {
               />
             </TouchableOpacity>
 
-            {/* Tombol Profil sekaligus berfungsi untuk Logout */}
             <TouchableOpacity
               style={styles.profileButton}
               activeOpacity={0.7}
@@ -507,7 +605,13 @@ export default function IndexScreen() {
                       borderColor: theme.borderColor,
                     },
                   ]}
-                  onPress={() => setActiveTab(menu.tabKey)}
+                  onPress={() => {
+                    if (menu.route) {
+                      router.push(menu.route as any);
+                    } else if (menu.tabKey) {
+                      setActiveTab(menu.tabKey);
+                    }
+                  }}
                   activeOpacity={0.7}
                 >
                   <View
@@ -719,121 +823,6 @@ export default function IndexScreen() {
           </View>
         )}
 
-        {activeTab === "settings" && searchQuery.length === 0 && (
-          <View>
-            <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
-                Pengaturan Sistem
-              </Text>
-              <Text
-                style={[styles.sectionSubtitle, { color: theme.textSecondary }]}
-              >
-                Kelola akun dan preferensi aplikasi
-              </Text>
-            </View>
-
-            <TouchableOpacity
-              style={[
-                styles.searchCard,
-                {
-                  backgroundColor: theme.cardBg,
-                  borderColor: theme.borderColor,
-                  marginBottom: 10,
-                },
-              ]}
-              onPress={toggleTheme}
-            >
-              <Ionicons
-                name={isDarkMode ? "sunny-outline" : "moon-outline"}
-                size={22}
-                color={theme.textPrimary}
-                style={{ marginRight: 12 }}
-              />
-              <View style={{ flex: 1 }}>
-                <Text
-                  style={[styles.searchCardTitle, { color: theme.textPrimary }]}
-                >
-                  Mode Tampilan
-                </Text>
-                <Text style={{ color: theme.textSecondary, fontSize: 12 }}>
-                  {isDarkMode ? "Gelap (Dark)" : "Terang (Light)"}
-                </Text>
-              </View>
-              <Ionicons
-                name="chevron-forward"
-                size={18}
-                color={theme.textSecondary}
-              />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.searchCard,
-                {
-                  backgroundColor: theme.cardBg,
-                  borderColor: theme.borderColor,
-                  marginBottom: 10,
-                },
-              ]}
-              onPress={handleKembaliNavigasi}
-            >
-              <Ionicons
-                name="arrow-back-outline"
-                size={20}
-                color={theme.textPrimary}
-                style={{ marginRight: 12 }}
-              />
-              <View style={{ flex: 1 }}>
-                <Text
-                  style={[styles.searchCardTitle, { color: theme.textPrimary }]}
-                >
-                  Kembali (Expo Router Back)
-                </Text>
-                <Text style={{ color: theme.textSecondary, fontSize: 12 }}>
-                  Uji coba fungsi router.back()
-                </Text>
-              </View>
-              <Ionicons
-                name="chevron-forward"
-                size={18}
-                color={theme.textSecondary}
-              />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.searchCard,
-                {
-                  backgroundColor: theme.cardBg,
-                  borderColor: theme.borderColor,
-                  marginBottom: 10,
-                },
-              ]}
-              onPress={handleLogout}
-            >
-              <Feather
-                name="log-out"
-                size={20}
-                color="#EF4444"
-                style={{ marginRight: 12 }}
-              />
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.searchCardTitle, { color: "#EF4444" }]}>
-                  Keluar dari Akun
-                </Text>
-                <Text style={{ color: theme.textSecondary, fontSize: 12 }}>
-                  {userEmail}
-                </Text>
-              </View>
-              <Ionicons
-                name="chevron-forward"
-                size={18}
-                color={theme.textSecondary}
-              />
-            </TouchableOpacity>
-          </View>
-        )}
-
         {activeTab === "tracking" && searchQuery.length === 0 && (
           <View>
             <View style={styles.sectionHeader}>
@@ -853,7 +842,6 @@ export default function IndexScreen() {
                 sku: "SKU-1001",
                 nama: "Laptop Asus ROG",
                 lokasi: "Lab Komputer 3",
-                peminjam: "Ahmad",
                 status: "Dipinjam",
               },
               {
@@ -861,7 +849,6 @@ export default function IndexScreen() {
                 sku: "SKU-1002",
                 nama: "Proyektor Epson",
                 lokasi: "Ruang Rapat Utama",
-                peminjam: "Budi",
                 status: "Dipinjam",
               },
               {
@@ -869,7 +856,6 @@ export default function IndexScreen() {
                 sku: "SKU-1003",
                 nama: "Kabel HDMI 10m",
                 lokasi: "Gudang Utama - Rak A2",
-                peminjam: "-",
                 status: "Tersedia",
               },
             ].map((track) => (
@@ -913,6 +899,44 @@ export default function IndexScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* Navigation Tabs di Bagian Bawah */}
+      <View
+        style={[
+          styles.bottomTabBar,
+          { backgroundColor: theme.cardBg, borderTopColor: theme.borderColor },
+        ]}
+      >
+        {[
+          { key: "home", label: "Beranda", icon: "home-outline" },
+          { key: "items", label: "Barang", icon: "cube-outline" },
+          { key: "history", label: "Riwayat", icon: "time-outline" },
+          { key: "tracking", label: "Lacak", icon: "location-outline" },
+        ].map((tab) => (
+          <TouchableOpacity
+            key={tab.key}
+            style={styles.tabItem}
+            onPress={() => setActiveTab(tab.key)}
+          >
+            <Ionicons
+              name={tab.icon as any}
+              size={22}
+              color={activeTab === tab.key ? "#4F46E5" : theme.textSecondary}
+            />
+            <Text
+              style={[
+                styles.tabLabel,
+                {
+                  color:
+                    activeTab === tab.key ? "#4F46E5" : theme.textSecondary,
+                },
+              ]}
+            >
+              {tab.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
 
       {/* MODAL POP-UP ERROR / OFFLINE */}
       <Modal
@@ -1002,261 +1026,83 @@ export default function IndexScreen() {
                 <Ionicons name="close" size={24} color={theme.textSecondary} />
               </TouchableOpacity>
             </View>
-
-            {/* Form Input Foto */}
-            <View style={{ marginBottom: 12, alignItems: "center" }}>
-              {fotoBarang ? (
-                <Image
-                  source={{ uri: fotoBarang }}
-                  style={styles.imagePreview}
-                />
-              ) : (
-                <View
-                  style={[
-                    styles.imagePlaceholder,
-                    { borderColor: theme.borderColor },
-                  ]}
-                >
-                  <Ionicons
-                    name="image-outline"
-                    size={32}
-                    color={theme.textSecondary}
-                  />
-                  <Text
-                    style={{
-                      color: theme.textSecondary,
-                      fontSize: 11,
-                      marginTop: 4,
-                    }}
-                  >
-                    Belum ada foto
-                  </Text>
-                </View>
-              )}
-
-              <View style={{ flexDirection: "row", gap: 10, marginTop: 8 }}>
-                <TouchableOpacity
-                  style={styles.uploadBtn}
-                  onPress={handlePickImageFromGallery}
-                >
-                  <Ionicons name="images-outline" size={16} color="#4F46E5" />
-                  <Text style={styles.uploadBtnText}>Dari Galeri</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.uploadBtn}
-                  onPress={handleHeaderCamera}
-                >
-                  <Ionicons name="camera-outline" size={16} color="#4F46E5" />
-                  <Text style={styles.uploadBtnText}>Ambil Foto</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <TextInput
-              style={[
-                styles.modalInput,
-                { color: theme.textPrimary, borderColor: theme.borderColor },
-              ]}
-              placeholder="Nama Barang"
-              placeholderTextColor={theme.textSecondary}
-              value={namaBarangInput}
-              onChangeText={setNamaBarangInput}
-            />
-            <TextInput
-              style={[
-                styles.modalInput,
-                { color: theme.textPrimary, borderColor: theme.borderColor },
-              ]}
-              placeholder="SKU (contoh: SKU-9999)"
-              placeholderTextColor={theme.textSecondary}
-              value={skuInput}
-              onChangeText={setSkuInput}
-            />
-            <TextInput
-              style={[
-                styles.modalInput,
-                { color: theme.textPrimary, borderColor: theme.borderColor },
-              ]}
-              placeholder="Kategori (contoh: Elektronik)"
-              placeholderTextColor={theme.textSecondary}
-              value={kategoriInput}
-              onChangeText={setKategoriInput}
-            />
-            <TextInput
-              style={[
-                styles.modalInput,
-                { color: theme.textPrimary, borderColor: theme.borderColor },
-              ]}
-              placeholder="Stok Barang"
-              placeholderTextColor={theme.textSecondary}
-              keyboardType="numeric"
-              value={stokInput}
-              onChangeText={setStokInput}
-            />
-
-            <TouchableOpacity
-              style={styles.simpanBtn}
-              onPress={handleSimpanBarang}
-            >
-              <Text style={{ color: "#FFFFFF", fontWeight: "bold" }}>
-                Simpan Barang
-              </Text>
-            </TouchableOpacity>
           </View>
         </View>
       </Modal>
-
-      {/* Bottom Nav */}
-      <View
-        style={[
-          styles.bottomNav,
-          { backgroundColor: theme.cardBg, borderTopColor: theme.borderColor },
-        ]}
-      >
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => setActiveTab("home")}
-        >
-          <Ionicons
-            name="home-outline"
-            size={20}
-            color={activeTab === "home" ? "#4F46E5" : theme.textSecondary}
-          />
-          <Text
-            style={[
-              styles.navText,
-              { color: activeTab === "home" ? "#4F46E5" : theme.textSecondary },
-            ]}
-          >
-            Beranda
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => setActiveTab("items")}
-        >
-          <Ionicons
-            name={activeTab === "items" ? "cube" : "cube-outline"}
-            size={22}
-            color={activeTab === "items" ? "#4F46E5" : "#94A3B8"}
-          />
-          <Text
-            style={[
-              styles.navLabel,
-              activeTab === "items" && styles.navLabelActive,
-            ]}
-          >
-            Barang
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={() => setIsModalVisible(true)}
-        >
-          <Ionicons name="add" size={28} color="#FFFFFF" />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => setActiveTab("history")}
-        >
-          <Ionicons
-            name={activeTab === "history" ? "time" : "time-outline"}
-            size={22}
-            color={activeTab === "history" ? "#4F46E5" : "#94A3B8"}
-          />
-          <Text
-            style={[
-              styles.navLabel,
-              activeTab === "history" && styles.navLabelActive,
-            ]}
-          >
-            Riwayat
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => setActiveTab("settings")}
-        >
-          <Ionicons
-            name={activeTab === "settings" ? "settings" : "settings-outline"}
-            size={22}
-            color={activeTab === "settings" ? "#4F46E5" : "#94A3B8"}
-          />
-          <Text
-            style={[
-              styles.navLabel,
-              activeTab === "settings" && styles.navLabelActive,
-            ]}
-          >
-            Pengaturan
-          </Text>
-        </TouchableOpacity>
-      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#3730A3",
-  },
-  headerBackground: { paddingHorizontal: 16, paddingBottom: 16 },
+  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
+  headerBackground: { paddingHorizontal: 16, paddingBottom: 20 },
   topNavbar: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 16,
   },
-  brandRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  brandRow: { flexDirection: "row", alignItems: "center" },
   headerLogoContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
     backgroundColor: "rgba(255,255,255,0.2)",
-    padding: 6,
-    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 10,
   },
-  brandName: { color: "#FFFFFF", fontSize: 18, fontWeight: "bold" },
-  brandTagline: { color: "rgba(255,255,255,0.7)", fontSize: 11 },
-  topActions: { flexDirection: "row", alignItems: "center", gap: 8 },
+  brandName: { color: "#FFFFFF", fontSize: 20, fontWeight: "bold" },
+  brandTagline: { color: "rgba(255,255,255,0.8)", fontSize: 12 },
+  topActions: { flexDirection: "row", alignItems: "center" },
   iconButton: {
-    padding: 8,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: "rgba(255,255,255,0.15)",
-    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: 8,
   },
   profileButton: {
-    padding: 8,
-    backgroundColor: "rgba(239,68,68,0.15)",
-    borderRadius: 10,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#FEE2E2",
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: 8,
   },
   heroContent: { marginTop: 4 },
-  heroGreeting: { color: "#FFFFFF", fontSize: 15, fontWeight: "bold" },
-  heroDescription: {
-    color: "rgba(255,255,255,0.8)",
-    fontSize: 11,
-    marginTop: 2,
-    marginBottom: 10,
+  heroGreeting: {
+    color: "#FFFFFF",
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 6,
   },
-  quickBar: { flexDirection: "row", gap: 8 },
+  heroDescription: {
+    color: "rgba(255,255,255,0.85)",
+    fontSize: 12,
+    lineHeight: 18,
+    marginBottom: 16,
+  },
+  quickBar: { flexDirection: "row", alignItems: "center" },
   searchInputContainer: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
     borderRadius: 10,
-    paddingHorizontal: 10,
-    height: 40,
+    paddingHorizontal: 12,
+    height: 42,
+    marginRight: 10,
   },
-  searchInput: { flex: 1, marginLeft: 8, fontSize: 12 },
+  searchInput: { flex: 1, marginLeft: 8, fontSize: 13 },
   scanButton: {
-    backgroundColor: "#4F46E5",
-    width: 40,
-    height: 40,
+    width: 42,
+    height: 42,
     borderRadius: 10,
+    backgroundColor: "rgba(255,255,255,0.25)",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -1264,8 +1110,9 @@ const styles = StyleSheet.create({
     flex: 1,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
+    marginTop: -10,
   },
-  scrollContent: { padding: 16, paddingBottom: 90 },
+  scrollContent: { padding: 16, paddingBottom: 80 },
   statusBanner: {
     flexDirection: "row",
     alignItems: "center",
@@ -1274,69 +1121,110 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginBottom: 16,
   },
+  emptyBox: {
+    padding: 20,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: "center",
+  },
+  searchCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  searchCardTitle: { fontSize: 14, fontWeight: "bold", marginBottom: 2 },
   sectionHeader: { marginBottom: 12 },
-  sectionTitle: { fontSize: 15, fontWeight: "bold" },
-  sectionSubtitle: { fontSize: 11, marginTop: 1 },
-  statsGrid: { flexDirection: "row", gap: 10 },
-  statCard: { flex: 1, padding: 12, borderRadius: 12, borderWidth: 1 },
+  sectionTitle: { fontSize: 16, fontWeight: "bold" },
+  sectionSubtitle: { fontSize: 12, marginTop: 2 },
+  statsGrid: { flexDirection: "row", justifyContent: "space-between" },
+  statCard: {
+    flex: 1,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginRight: 8,
+  },
   statTopRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    marginBottom: 8,
   },
-  statIconWrapper: { padding: 6, borderRadius: 8 },
+  statIconWrapper: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   statUnit: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: "bold",
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
   },
-  statValue: { fontSize: 16, fontWeight: "bold", marginTop: 8 },
-  statTitle: { fontSize: 10, marginTop: 2 },
+  statValue: { fontSize: 18, fontWeight: "bold" },
+  statTitle: { fontSize: 11, marginBottom: 8 },
   statTrendRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    marginTop: 8,
     paddingTop: 6,
-    borderTopWidth: 1,
+    borderWidth: 1,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
+    borderBottomWidth: 0,
   },
-  statTrendText: { fontSize: 9 },
-  menuContainer: { gap: 10 },
+  statTrendText: { fontSize: 9, marginLeft: 4 },
+  menuContainer: { marginTop: 8 },
   menuCard: {
     flexDirection: "row",
-    padding: 12,
+    alignItems: "center",
+    padding: 14,
     borderRadius: 12,
     borderWidth: 1,
-    alignItems: "center",
+    marginBottom: 12,
   },
-  menuIconContainer: { padding: 10, borderRadius: 10, marginRight: 12 },
+  menuIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
   menuContent: { flex: 1 },
-  menuTitleRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  menuTitle: { fontSize: 13, fontWeight: "bold" },
-  tagBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  tagText: { fontSize: 9, fontWeight: "bold" },
-  menuSubtitle: { fontSize: 10, marginTop: 1 },
-  menuDescription: { fontSize: 10, marginTop: 4 },
-  menuChevron: { marginLeft: 6 },
-  searchCard: {
+  menuTitleRow: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 12,
-    borderRadius: 10,
-    borderWidth: 1,
+    justifyContent: "space-between",
+    marginBottom: 2,
   },
-  searchCardTitle: { fontSize: 13, fontWeight: "bold" },
-  emptyBox: {
-    padding: 20,
+  menuTitle: { fontSize: 15, fontWeight: "bold" },
+  tagBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
+  tagText: { fontSize: 10, fontWeight: "bold" },
+  menuSubtitle: { fontSize: 12, fontWeight: "600", marginBottom: 4 },
+  menuDescription: { fontSize: 11, lineHeight: 15 },
+  menuChevron: { marginLeft: 8 },
+  bottomTabBar: {
+    flexDirection: "row",
+    justifyContent: "space-around",
     alignItems: "center",
-    borderRadius: 10,
-    borderWidth: 1,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
   },
+  tabItem: { alignItems: "center" },
+  tabLabel: { fontSize: 10, marginTop: 4, fontWeight: "600" },
   blurOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
+    backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
@@ -1348,47 +1236,45 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: "center",
   },
-  centeredErrorTitle: { fontSize: 16, fontWeight: "bold", marginTop: 10 },
-  centeredErrorText: { fontSize: 12, textAlign: "center", marginTop: 6 },
-  modalErrorActions: { flexDirection: "row", gap: 12, marginTop: 16 },
-  closeErrorBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 },
+  centeredErrorTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    marginTop: 12,
+    marginBottom: 6,
+  },
+  centeredErrorText: { fontSize: 13, textAlign: "center", marginBottom: 16 },
+  modalErrorActions: { flexDirection: "row", alignItems: "center" },
+  closeErrorBtn: { paddingHorizontal: 16, paddingVertical: 10, marginRight: 8 },
   centeredRetryBtn: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#EF4444",
+    backgroundColor: "#4F46E5",
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderRadius: 8,
-    gap: 6,
   },
-  centeredRetryText: { color: "#FFFFFF", fontWeight: "bold", fontSize: 12 },
+  centeredRetryText: {
+    color: "#FFFFFF",
+    fontWeight: "bold",
+    fontSize: 13,
+    marginLeft: 6,
+  },
   scannerContainer: { flex: 1, backgroundColor: "#000000" },
-  scannerOverlay: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    backgroundColor: "rgba(0,0,0,0.4)",
-  },
+  scannerOverlay: { flex: 1, justifyContent: "center", alignItems: "center" },
   scanFrame: {
-    width: 240,
-    height: 240,
+    width: 220,
+    height: 220,
     borderWidth: 2,
-    borderColor: "#4F46E5",
+    borderColor: "#FFFFFF",
     borderRadius: 16,
   },
-  scanInstructions: {
-    color: "#FFFFFF",
-    fontSize: 13,
-    marginTop: 20,
-    fontWeight: "500",
-  },
+  scanInstructions: { color: "#FFFFFF", marginTop: 20, fontSize: 14 },
   closeScannerBtn: {
     marginTop: 30,
     backgroundColor: "#EF4444",
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
   },
   closeScannerText: { color: "#FFFFFF", fontWeight: "bold" },
   modalOverlay: {
@@ -1397,73 +1283,15 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   modalContent: {
-    padding: 20,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
+    padding: 20,
+    minHeight: 300,
   },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 16,
   },
-  modalTitle: { fontSize: 16, fontWeight: "bold" },
-  modalInput: {
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    fontSize: 12,
-    marginBottom: 10,
-  },
-  simpanBtn: {
-    backgroundColor: "#4F46E5",
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: "center",
-    marginTop: 6,
-  },
-  imagePreview: { width: 80, height: 80, borderRadius: 12 },
-  imagePlaceholder: {
-    width: 80,
-    height: 80,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderStyle: "dashed",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  uploadBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(79, 70, 229, 0.1)",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    gap: 4,
-  },
-  uploadBtnText: { color: "#4F46E5", fontSize: 11, fontWeight: "600" },
-  bottomNav: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 65,
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "center",
-    borderTopWidth: 1,
-  },
-  navItem: { alignItems: "center", flex: 1 },
-  navText: { fontSize: 10, marginTop: 2 },
-  addButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: "#4F46E5",
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: -25,
-    elevation: 4,
-  },
+  modalTitle: { fontSize: 18, fontWeight: "bold" },
 });

@@ -1,0 +1,70 @@
+import React, { useState, useEffect } from 'react';
+import { Text, View, StyleSheet, Button, Alert } from 'react-native';
+import { CameraView, Camera } from 'expo-camera';
+import { useAudioPlayer } from 'expo-audio'; // Import pengelola suara
+
+export default function ScanScreen() {
+  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+  const [scanned, setScanned] = useState(false);
+
+  // Load file suara dari folder assets
+  const player = useAudioPlayer(require('../../assets/beep.mp3'));
+
+  useEffect(() => {
+    const getCameraPermissions = async () => {
+      const { status } = await Camera.requestCameraPermissionsAsync();
+      setHasPermission(status === 'granted');
+    };
+    getCameraPermissions();
+  }, []);
+
+  const handleBarcodeScanned = ({ data }: { data: string }) => {
+    setScanned(true);
+    
+    // Putar suara BEEP saat QR berhasil di-scan
+    try {
+      player.play();
+    } catch (error) {
+      console.log('Gagal memutar suara:', error);
+    }
+
+    Alert.alert(
+      "QR Code Terdeteksi",
+      `Kode Barang: ${data}`,
+      [
+        { 
+          text: "OK", 
+          onPress: () => setScanned(false)
+        }
+      ]
+    );
+  };
+
+  if (hasPermission === null) {
+    return <View style={styles.center}><Text>Meminta izin kamera...</Text></View>;
+  }
+  if (hasPermission === false) {
+    return <View style={styles.center}><Text>Akses kamera ditolak.</Text></View>;
+  }
+
+  return (
+    <View style={styles.container}>
+      <CameraView
+        onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
+        barcodeScannerSettings={{ barcodeTypes: ["qr", "code128"] }}
+        style={StyleSheet.absoluteFillObject}
+      />
+      {scanned && (
+        <View style={styles.buttonBox}>
+          <Button title="Scan Lagi" onPress={() => setScanned(false)} />
+        </View>
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  buttonBox: { position: 'absolute', bottom: 40, left: 20, right: 20 }
+});
