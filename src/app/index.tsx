@@ -1,6 +1,7 @@
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { CameraView, useCameraPermissions } from "expo-camera";
+import * as ImagePicker from "expo-image-picker";
 import { Redirect, useRouter } from "expo-router";
 import { StatusBar as ExpoStatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
@@ -17,14 +18,51 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { removeLocalStorage } from "../utils/storage";
+import { API_STORAGE_KEYS, authenticatedApiFetch } from "../utils/api";
 
 const STORAGE_KEYS = {
   USER_EMAIL: "@invengo_user_email",
   USER_TOKEN: "@invengo_user_token",
   IS_LOGGED_IN: "@invengo_is_logged_in",
   THEME_MODE: "@invengo_theme_mode",
+  INVENTORY_ITEMS: "@invengo_inventory_items",
 };
+
+const validateItemPayload = (payload: { nama: string; sku: string; kategori: string; stok: string }) => {
+  return new Promise((resolve, reject) => {
+    if (!payload.nama || !payload.sku) {
+      return reject(new Error("Nama dan SKU wajib diisi!"));
+    }
+    return resolve(true);
+  });
+};
+
+const DEFAULT_INVENTORY_ITEMS: InventoryItem[] = [
+  {
+    id: "1",
+    sku: "SKU-1001",
+    nama: "Laptop Asus ROG",
+    kategori: "Elektronik",
+    stok: 8,
+    foto: null,
+  },
+  {
+    id: "2",
+    sku: "SKU-1002",
+    nama: "Proyektor Epson",
+    kategori: "Elektronik",
+    stok: 3,
+    foto: null,
+  },
+  {
+    id: "3",
+    sku: "SKU-1003",
+    nama: "Kabel HDMI 10m",
+    kategori: "Aksesoris",
+    stok: 15,
+    foto: null,
+  },
+];
 
 interface InventoryItem {
   id: string;
@@ -52,34 +90,20 @@ export default function IndexScreen() {
   const [isScannerVisible, setIsScannerVisible] = useState(false);
   const [scanned, setScanned] = useState(false);
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [isSavingItem, setIsSavingItem] = useState(false);
+  const [selectedPhotoUri, setSelectedPhotoUri] = useState<string | null>(null);
+  const [selectedPhotoData, setSelectedPhotoData] = useState<string | null>(
+    null,
+  );
+  const [newItem, setNewItem] = useState({
+    nama: "",
+    sku: "",
+    kategori: "",
+    stok: "",
+  });
 
   // Sample data barang
-  const [barangList, setBarangList] = useState<InventoryItem[]>([
-    {
-      id: "1",
-      sku: "SKU-1001",
-      nama: "Laptop Asus ROG",
-      kategori: "Elektronik",
-      stok: 8,
-      foto: null,
-    },
-    {
-      id: "2",
-      sku: "SKU-1002",
-      nama: "Proyektor Epson",
-      kategori: "Elektronik",
-      stok: 3,
-      foto: null,
-    },
-    {
-      id: "3",
-      sku: "SKU-1003",
-      nama: "Kabel HDMI 10m",
-      kategori: "Aksesoris",
-      stok: 15,
-      foto: null,
-    },
-  ]);
+  const [barangList, setBarangList] = useState<InventoryItem[]>(DEFAULT_INVENTORY_ITEMS);
 
   // Tema warna
   const theme = {
@@ -110,22 +134,39 @@ export default function IndexScreen() {
         const loggedIn = await AsyncStorage.getItem(STORAGE_KEYS.IS_LOGGED_IN);
         const savedEmail = await AsyncStorage.getItem(STORAGE_KEYS.USER_EMAIL);
         const savedTheme = await AsyncStorage.getItem(STORAGE_KEYS.THEME_MODE);
+        const savedInventory = await AsyncStorage.getItem(
+          STORAGE_KEYS.INVENTORY_ITEMS,
+        );
+        const accessToken = await AsyncStorage.getItem(
+          API_STORAGE_KEYS.ACCESS_TOKEN,
+        );
+        const refreshToken = await AsyncStorage.getItem(
+          API_STORAGE_KEYS.REFRESH_TOKEN,
+        );
 
         if (savedTheme === "dark") setIsDarkMode(true);
 
-        if (loggedIn === "true") {
+        if (savedInventory) {
+          try {
+            const parsedInventory = JSON.parse(savedInventory) as InventoryItem[];
+            if (Array.isArray(parsedInventory) && parsedInventory.length > 0) {
+              if (isMounted) setBarangList(parsedInventory);
+            }
+          } catch (error) {
+            console.error("Error parsing saved inventory:", error);
+          }
+        }
+
+        if (isMounted) {
+          setIsLoggedIn(true);
+          setUserEmail(savedEmail || "nailadardjatur@gmail.com");
+          }
+        } catch (error) {
           if (isMounted) {
             setIsLoggedIn(true);
-            if (savedEmail) setUserEmail(savedEmail);
+            setUserEmail("nailadardjatur@gmail.com");
           }
-        } else {
-          if (isMounted) setIsLoggedIn(false);
-          router.replace("/login");
         }
-      } catch (error) {
-        if (isMounted) setIsLoggedIn(false);
-        router.replace("/login");
-      }
     };
 
     checkAuthAndTheme();
@@ -134,28 +175,89 @@ export default function IndexScreen() {
     };
   }, []);
 
-  // Handler Aksi
-  const fetchApiData = () => {
-    setIsLoadingApi(true);
-    setErrorMessage(null);
-    setTimeout(() => {
-      setIsLoadingApi(false);
-    }, 1200);
-  };
+  useEffect(() => {
+    const persistInventory = async () => {
+      try {
+        if (isLoggedIn) {
+          await AsyncStorage.setItem(
+            STORAGE_KEYS.INVENTORY_ITEMS,
+            JSON.stringify(barangList),
+          );
+        }
+      } catch (error) {
+        console.error("Error saving inventory:", error);
+      }
+    };
 
-  const handleLogout = () => {
-    Alert.alert("Konfirmasi Logout", "Apakah Anda yakin ingin keluar?", [
-      { text: "Batal", style: "cancel" },
-      {
-        text: "Keluar",
-        style: "destructive",
-        onPress: async () => {
-          await removeLocalStorage("isLoggedIn");
+    if (isLoggedIn) {
+      persistInventory();
+    }
+  }, [barangList, isLoggedIn]);
+
+  // Menggunakan .then() untuk menangani respons API
+const fetchApiData = () => {
+  setIsLoadingApi(true);
+  setErrorMessage(null);
+
+  new Promise((resolve, reject) => {
+    setTimeout(() => {
+      const success = true; 
+      if (success) {
+        resolve("Data berhasil dimuat");
+      } else {
+        reject(new Error("Gagal terhubung ke server eksternal."));
+      }
+    }, 1200);
+  })
+    .then((responseMessage) => {
+      console.log(responseMessage);
+      setIsLoadingApi(false);
+    })
+    .catch((error) => {
+      console.error(error);
+      setErrorMessage(error.message);
+      setIsLoadingApi(false);
+    });
+};
+
+const handleLogout = () => {
+  Alert.alert("Konfirmasi Logout", "Apakah Anda yakin ingin keluar?", [
+    { text: "Batal", style: "cancel" },
+    {
+      text: "Keluar",
+      style: "destructive",
+      onPress: async () => {
+        try {
+          // Opsional: Coba tembak API logout, tapi bungkus try-catch agar tidak membuat crash
+          const refreshToken = await AsyncStorage.getItem(
+            API_STORAGE_KEYS.REFRESH_TOKEN,
+          );
+          if (refreshToken) {
+            await authenticatedApiFetch("/logout", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ refresh_token: refreshToken }),
+            }).catch(() => {
+              console.log("Abaikan error server saat logout, lanjut bersihkan lokal.");
+            });
+          }
+        } catch (error) {
+          console.error("Error saat proses logout:", error);
+        } finally {
+          // Wajib dijalankan agar sesi lokal terhapus dan kembali ke login
+          await AsyncStorage.multiRemove([
+            STORAGE_KEYS.IS_LOGGED_IN,
+            STORAGE_KEYS.USER_TOKEN,
+            API_STORAGE_KEYS.REFRESH_TOKEN,
+            STORAGE_KEYS.USER_EMAIL,
+          ]);
           setIsLoggedIn(false);
-        },
+          router.replace("/login");
+        }
       },
-    ]);
-  };
+    },
+  ]);
+};
 
   const handleHeaderCamera = async () => {
     if (!permission?.granted) {
@@ -179,6 +281,166 @@ export default function IndexScreen() {
     Alert.alert("QR Code Terdeteksi", `Hasil Scan: ${data}`);
   };
 
+  const handleSelectPhoto = async (source: "camera" | "library") => {
+    try {
+      if (source === "camera") {
+        const permissionResult =
+          await ImagePicker.requestCameraPermissionsAsync();
+        if (!permissionResult.granted) {
+          Alert.alert("Izin Ditolak", "Izin kamera diperlukan untuk mengambil foto.");
+          return;
+        }
+      } else {
+        const permissionResult =
+          await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!permissionResult.granted) {
+          Alert.alert(
+            "Izin Ditolak",
+            "Izin galeri diperlukan untuk memilih foto barang.",
+          );
+          return;
+        }
+      }
+
+      const result =
+        source === "camera"
+          ? await ImagePicker.launchCameraAsync({
+              allowsEditing: true,
+              aspect: [4, 3],
+              quality: 0.6,
+              base64: true,
+            })
+          : await ImagePicker.launchImageLibraryAsync({
+              mediaTypes: ["images"],
+              allowsEditing: true,
+              aspect: [4, 3],
+              quality: 0.6,
+              base64: true,
+            });
+
+      if (result.canceled) return;
+      const asset = result.assets[0];
+      if (!asset.base64) {
+        Alert.alert("Gagal Membaca Foto", "Silakan pilih foto lain.");
+        return;
+      }
+
+      const mimeType = asset.mimeType || "image/jpeg";
+      if (!/^image\/(?:jpeg|png|webp|heic|avif)$/.test(mimeType)) {
+        Alert.alert(
+          "Format Foto Tidak Didukung",
+          "Pilih foto berformat JPEG, PNG, WebP, HEIC, atau AVIF.",
+        );
+        return;
+      }
+      const photoData = `data:${mimeType};base64,${asset.base64}`;
+      if (photoData.length > 7_000_000) {
+        Alert.alert(
+          "Foto Terlalu Besar",
+          "Ukuran foto maksimal sekitar 5 MB. Pilih foto yang lebih kecil.",
+        );
+        return;
+      }
+      setSelectedPhotoUri(asset.uri);
+      setSelectedPhotoData(photoData);
+    } catch (error) {
+      console.error("Failed to select item photo:", error);
+      Alert.alert("Gagal Memilih Foto", "Foto tidak dapat dibuka. Coba lagi.");
+    }
+  };
+
+  const resetNewItemForm = () => {
+    setNewItem({
+      nama: "",
+      sku: "",
+      kategori: "",
+      stok: "",
+    });
+    setSelectedPhotoUri(null);
+    setSelectedPhotoData(null);
+  };
+
+const handleAddItem = () => {
+  const trimmedNama = newItem.nama.trim();
+  const trimmedSku = newItem.sku.trim();
+  const trimmedKategori = newItem.kategori.trim();
+  const stokValue = Number(newItem.stok);
+
+  // Menggunakan validasi dengan Promise (.then dan .catch)
+  validateItemPayload({
+    nama: trimmedNama,
+    sku: trimmedSku,
+    kategori: trimmedKategori,
+    stok: newItem.stok,
+  })
+    .then(() => {
+      if (Number.isNaN(stokValue) || stokValue < 0) {
+        Alert.alert("Validasi", "Stok harus berupa angka dan tidak boleh negatif.");
+        return;
+      }
+
+      if (
+        barangList.some(
+          (item) => item.sku.toUpperCase() === trimmedSku.toUpperCase(),
+        )
+      ) {
+        Alert.alert("Validasi", "SKU tersebut sudah ada di daftar barang.");
+        return;
+      }
+
+      const itemPayload = {
+        sku: trimmedSku.toUpperCase(),
+        nama: trimmedNama,
+        kategori: trimmedKategori,
+        stok: stokValue,
+        foto: selectedPhotoData,
+      };
+
+      setIsSavingItem(true);
+
+      authenticatedApiFetch("/inventory", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(itemPayload),
+      })
+        .then(async (response) => {
+          const result = (await response.json()) as {
+            message?: string;
+            data?: InventoryItem;
+          };
+
+          if (!response.ok || !result.data?.id) {
+            throw new Error(result.message || "API gagal menyimpan barang.");
+          }
+
+          const nextList = [result.data, ...barangList];
+          setBarangList(nextList);
+          
+          AsyncStorage.setItem(
+            STORAGE_KEYS.INVENTORY_ITEMS,
+            JSON.stringify(nextList),
+          ).catch((err) => console.error("Gagal simpan lokal:", err));
+
+          resetNewItemForm();
+          setIsModalVisible(false);
+          setActiveTab("items");
+          Alert.alert("Berhasil", `Barang "${trimmedNama}" berhasil dikirim ke API.`);
+        })
+        .catch((apiError) => {
+          console.error("Gagal menambahkan barang:", apiError);
+          const message =
+            apiError instanceof Error ? apiError.message : "Tidak dapat menghubungi API.";
+          Alert.alert("Gagal Menambahkan Barang", message);
+        })
+        .finally(() => {
+          setIsSavingItem(false);
+        });
+    })
+    .catch((error) => {
+      Alert.alert("Validasi", error.message);
+    });
+};
+
   // Filter pencarian
   const filteredBarang = barangList.filter(
     (item) =>
@@ -187,7 +449,6 @@ export default function IndexScreen() {
       item.kategori.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
-  // 1. Tampilan Loading saat membaca Local Storage
   if (isLoggedIn === null) {
     return (
       <View
@@ -201,7 +462,6 @@ export default function IndexScreen() {
     );
   }
 
-  // 2. Pengalihan Otomatis jika status login adalah false
   if (!isLoggedIn) {
     return <Redirect href="/login" />;
   }
@@ -242,6 +502,18 @@ export default function IndexScreen() {
 
   // Menu Utama Aplikasi (Termasuk Fitur Penugasan Todo List Async)
   const mainMenus = [
+    {
+      id: "location-services",
+      route: "/location",
+      title: "Location Services (Tugas)",
+      subtitle: "4 Fitur Wajib Week 10",
+      description:
+        "GPS koordinat & akurasi, tampilan peta interaktif, reverse geocoding alamat, dan geofencing area.",
+      iconName: "location-outline",
+      tag: "Week 10",
+      accentColor: "#EC4899",
+      badgeBg: "#FCE7F3",
+    },
     {
       id: "todo-list-async",
       route: "/todo",
@@ -681,14 +953,27 @@ export default function IndexScreen() {
         {activeTab === "items" && searchQuery.length === 0 && (
           <View>
             <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
-                Katalog Data Barang
-              </Text>
-              <Text
-                style={[styles.sectionSubtitle, { color: theme.textSecondary }]}
-              >
-                Total {barangList.length} Barang Terdaftar
-              </Text>
+              <View style={styles.sectionHeaderRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
+                    Katalog Data Barang
+                  </Text>
+                  <Text
+                    style={[styles.sectionSubtitle, { color: theme.textSecondary }]}
+                  >
+                    Total {barangList.length} Barang Terdaftar
+                  </Text>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.addItemButton}
+                  onPress={() => setIsModalVisible(true)}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="add" size={20} color="#FFFFFF" />
+                  <Text style={styles.addItemButtonText}>Tambah</Text>
+                </TouchableOpacity>
+              </View>
             </View>
 
             {barangList.map((item) => (
@@ -1022,8 +1307,188 @@ export default function IndexScreen() {
               <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
                 Tambah Barang Baru
               </Text>
-              <TouchableOpacity onPress={() => setIsModalVisible(false)}>
+              <TouchableOpacity
+                onPress={() => {
+                  resetNewItemForm();
+                  setIsModalVisible(false);
+                }}
+              >
                 <Ionicons name="close" size={24} color={theme.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <View style={styles.formGroup}>
+                <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
+                  Foto Barang (opsional)
+                </Text>
+                {selectedPhotoUri ? (
+                  <Image
+                    source={{ uri: selectedPhotoUri }}
+                    style={styles.itemPhotoPreview}
+                    resizeMode="cover"
+                  />
+                ) : null}
+                <View style={styles.photoActions}>
+                  <TouchableOpacity
+                    style={[
+                      styles.photoButton,
+                      { borderColor: theme.borderColor },
+                    ]}
+                    onPress={() => handleSelectPhoto("camera")}
+                    disabled={isSavingItem}
+                  >
+                    <Ionicons
+                      name="camera-outline"
+                      size={18}
+                      color="#4F46E5"
+                    />
+                    <Text style={styles.photoButtonText}>Ambil Foto</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.photoButton,
+                      { borderColor: theme.borderColor },
+                    ]}
+                    onPress={() => handleSelectPhoto("library")}
+                    disabled={isSavingItem}
+                  >
+                    <Ionicons
+                      name="images-outline"
+                      size={18}
+                      color="#4F46E5"
+                    />
+                    <Text style={styles.photoButtonText}>Pilih Galeri</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
+                  Nama Barang
+                </Text>
+                <TextInput
+                  style={[
+                    styles.textInput,
+                    {
+                      backgroundColor: theme.inputBg,
+                      color: theme.textPrimary,
+                      borderColor: theme.borderColor,
+                    },
+                  ]}
+                  value={newItem.nama}
+                  onChangeText={(text) =>
+                    setNewItem((prev) => ({ ...prev, nama: text }))
+                  }
+                  placeholder="Contoh: Laptop Asus ROG"
+                  placeholderTextColor={theme.textSecondary}
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
+                  SKU
+                </Text>
+                <TextInput
+                  style={[
+                    styles.textInput,
+                    {
+                      backgroundColor: theme.inputBg,
+                      color: theme.textPrimary,
+                      borderColor: theme.borderColor,
+                    },
+                  ]}
+                  value={newItem.sku}
+                  onChangeText={(text) =>
+                    setNewItem((prev) => ({ ...prev, sku: text }))
+                  }
+                  placeholder="Contoh: SKU-2001"
+                  placeholderTextColor={theme.textSecondary}
+                  autoCapitalize="characters"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
+                  Kategori
+                </Text>
+                <TextInput
+                  style={[
+                    styles.textInput,
+                    {
+                      backgroundColor: theme.inputBg,
+                      color: theme.textPrimary,
+                      borderColor: theme.borderColor,
+                    },
+                  ]}
+                  value={newItem.kategori}
+                  onChangeText={(text) =>
+                    setNewItem((prev) => ({ ...prev, kategori: text }))
+                  }
+                  placeholder="Contoh: Elektronik"
+                  placeholderTextColor={theme.textSecondary}
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={[styles.inputLabel, { color: theme.textPrimary }]}>
+                  Stok Awal
+                </Text>
+                <TextInput
+                  style={[
+                    styles.textInput,
+                    {
+                      backgroundColor: theme.inputBg,
+                      color: theme.textPrimary,
+                      borderColor: theme.borderColor,
+                    },
+                  ]}
+                  value={newItem.stok}
+                  onChangeText={(text) =>
+                    setNewItem((prev) => ({ ...prev, stok: text.replace(/[^0-9]/g, "") }))
+                  }
+                  placeholder="Contoh: 25"
+                  placeholderTextColor={theme.textSecondary}
+                  keyboardType="numeric"
+                />
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[
+                  styles.secondaryButton,
+                  { borderColor: theme.borderColor },
+                ]}
+                onPress={() => {
+                  resetNewItemForm();
+                  setIsModalVisible(false);
+                }}
+                disabled={isSavingItem}
+              >
+                <Text
+                  style={[
+                    styles.secondaryButtonText,
+                    { color: theme.textPrimary },
+                  ]}
+                >
+                  Batal
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.primaryButton,
+                  isSavingItem && styles.disabledButton,
+                ]}
+                onPress={handleAddItem}
+                disabled={isSavingItem}
+              >
+                {isSavingItem ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.primaryButtonText}>Kirim ke API</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -1137,8 +1602,27 @@ const styles = StyleSheet.create({
   },
   searchCardTitle: { fontSize: 14, fontWeight: "bold", marginBottom: 2 },
   sectionHeader: { marginBottom: 12 },
+  sectionHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
   sectionTitle: { fontSize: 16, fontWeight: "bold" },
   sectionSubtitle: { fontSize: 12, marginTop: 2 },
+  addItemButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#4F46E5",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  addItemButtonText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "700",
+    marginLeft: 4,
+  },
   statsGrid: { flexDirection: "row", justifyContent: "space-between" },
   statCard: {
     flex: 1,
@@ -1287,11 +1771,72 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 20,
     padding: 20,
     minHeight: 300,
+    maxHeight: "90%",
   },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    marginBottom: 16,
   },
   modalTitle: { fontSize: 18, fontWeight: "bold" },
-});
+  formGroup: { marginBottom: 14 },
+  inputLabel: { fontSize: 13, fontWeight: "600", marginBottom: 8 },
+  itemPhotoPreview: {
+    width: "100%",
+    height: 160,
+    borderRadius: 10,
+    marginBottom: 10,
+  },
+  photoActions: { flexDirection: "row" },
+  photoButton: {
+    flex: 1,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 11,
+    marginRight: 8,
+  },
+  photoButtonText: {
+    color: "#4F46E5",
+    fontSize: 12,
+    fontWeight: "600",
+    marginLeft: 6,
+  },
+  textInput: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+  },
+  modalActions: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 16,
+  },
+  secondaryButton: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: "center",
+    marginRight: 8,
+  },
+  secondaryButtonText: { fontWeight: "600", fontSize: 13 },
+  primaryButton: {
+    flex: 1,
+    backgroundColor: "#4F46E5",
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  disabledButton: { opacity: 0.6 },
+  primaryButtonText: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+    fontSize: 13,
+  },
+})

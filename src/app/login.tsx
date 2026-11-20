@@ -12,10 +12,11 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { API_BASE_URL, API_STORAGE_KEYS } from "../utils/api";
 
 const STORAGE_KEYS = {
   USER_EMAIL: "@invengo_user_email",
-  USER_PASSWORD: "@invengo_user_password",
+  LEGACY_USER_PASSWORD: "@invengo_user_password",
   IS_LOGGED_IN: "@invengo_is_logged_in",
   THEME_MODE: "@invengo_theme_mode",
 };
@@ -55,16 +56,34 @@ export default function LoginScreen() {
     if (!email.trim() || !password.trim()) {
       return showAlert("Peringatan", "Harap isi Email dan Password!");
     }
+
+    if (password.length < 8) {
+      return showAlert("Peringatan", "Password harus memiliki minimal 8 karakter.");
+    }
+
     try {
+      const response = await fetch(`${API_BASE_URL}/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim(), password }),
+      });
+      const result = (await response.json()) as { message?: string };
+      if (!response.ok) {
+        throw new Error(result.message || "Registrasi gagal.");
+      }
+
       await AsyncStorage.setItem(STORAGE_KEYS.USER_EMAIL, email.trim());
-      await AsyncStorage.setItem(STORAGE_KEYS.USER_PASSWORD, password);
 
       showAlert("Registrasi Berhasil", "Akun berhasil dibuat. Silakan login!", () => {
         setPassword("");
         setIsRegister(false);
       });
-    } catch (e) {
-      showAlert("Error", "Gagal menyimpan data pendaftaran.");
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Tidak dapat menghubungi API pendaftaran.";
+      showAlert("Registrasi Gagal", message);
     }
   };
 
@@ -72,18 +91,66 @@ export default function LoginScreen() {
     if (!email.trim() || !password.trim()) {
       return showAlert("Peringatan", "Harap isi Email dan Password!");
     }
-    try {
-      const savedEmail = await AsyncStorage.getItem(STORAGE_KEYS.USER_EMAIL);
-      const savedPassword = await AsyncStorage.getItem(STORAGE_KEYS.USER_PASSWORD);
 
-      if (email.trim() === savedEmail && password === savedPassword) {
-        await AsyncStorage.setItem(STORAGE_KEYS.IS_LOGGED_IN, "true");
-        router.replace("/");
-      } else {
-        showAlert("Gagal Login", "Email atau Password tidak cocok / Akun belum terdaftar!");
+    try {
+      let response = await fetch(`${API_BASE_URL}/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim(), password }),
+      });
+
+      if (response.status === 401) {
+        const [legacyEmail, legacyPassword] = await Promise.all([
+          AsyncStorage.getItem(STORAGE_KEYS.USER_EMAIL),
+          AsyncStorage.getItem(STORAGE_KEYS.LEGACY_USER_PASSWORD),
+        ]);
+        if (
+          legacyEmail?.toLowerCase() === email.trim().toLowerCase() &&
+          legacyPassword === password
+        ) {
+          const migrationResponse = await fetch(`${API_BASE_URL}/register`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: email.trim(), password }),
+          });
+          if (migrationResponse.ok || migrationResponse.status === 409) {
+            response = await fetch(`${API_BASE_URL}/login`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ email: email.trim(), password }),
+            });
+          }
+        }
       }
-    } catch (e) {
-      showAlert("Error", "Gagal memproses login.");
+
+      const result = (await response.json()) as {
+        access_token?: string;
+        refresh_token?: string;
+        message?: string;
+      };
+
+      if (
+        !response.ok ||
+        !result.access_token ||
+        !result.refresh_token
+      ) {
+        throw new Error(result.message || "Email atau password salah.");
+      }
+
+      await AsyncStorage.multiSet([
+        [STORAGE_KEYS.USER_EMAIL, email.trim()],
+        [STORAGE_KEYS.IS_LOGGED_IN, "true"],
+        [API_STORAGE_KEYS.ACCESS_TOKEN, result.access_token],
+        [API_STORAGE_KEYS.REFRESH_TOKEN, result.refresh_token],
+      ]);
+      await AsyncStorage.removeItem(STORAGE_KEYS.LEGACY_USER_PASSWORD);
+      router.replace("/");
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Tidak dapat menghubungi API login.";
+      showAlert("Login Gagal", message);
     }
   };
 
