@@ -7,6 +7,7 @@ export default function RootLayout() {
       <Stack.Screen name="register" />
       <Stack.Screen name="index" />
       <Stack.Screen name="explore" />
+      <Stack.Screen name="produk" />
       {/* Mendaftarkan rute todo dengan header bawaan & tombol kembali otomatis */}
       <Stack.Screen
         name="todo"
@@ -17,6 +18,9 @@ export default function RootLayout() {
           headerTintColor: "#FFFFFF",
         }}
       />
+
     </Stack>
   );
 }
+
+
